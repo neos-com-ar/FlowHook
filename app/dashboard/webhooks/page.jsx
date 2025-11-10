@@ -1,0 +1,278 @@
+'use client';
+
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+export default function WebhooksPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [webhooks, setWebhooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFlowId, setSelectedFlowId] = useState(null);
+  const [flows, setFlows] = useState([]);
+  const [expandedWebhook, setExpandedWebhook] = useState(null);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    if (session) {
+      fetchFlows();
+      // Obtener flowId de la URL si existe
+      const urlParams = new URLSearchParams(window.location.search);
+      const flowIdFromUrl = urlParams.get('flowId');
+      if (flowIdFromUrl) {
+        setSelectedFlowId(flowIdFromUrl);
+      }
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (session) {
+      fetchWebhooks();
+    }
+  }, [session, selectedFlowId]);
+
+  const fetchFlows = async () => {
+    try {
+      const response = await fetch('/api/flows');
+      if (response.ok) {
+        const data = await response.json();
+        setFlows(data.flows || []);
+      }
+    } catch (error) {
+      console.error('Error fetching flows:', error);
+    }
+  };
+
+  const fetchWebhooks = async () => {
+    try {
+      setLoading(true);
+      const url = selectedFlowId 
+        ? `/api/webhooks?flowId=${selectedFlowId}&limit=100`
+        : '/api/webhooks?limit=100';
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setWebhooks(data.webhooks || []);
+      } else {
+        console.error('Error fetching webhooks');
+      }
+    } catch (error) {
+      console.error('Error fetching webhooks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(date);
+  };
+
+  const formatTime = (ms) => {
+    if (!ms) return 'N/A';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
+
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-500">Cargando...</div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Historial de Webhooks</h1>
+          <p className="text-gray-600 mt-2">Visualiza todos los webhooks recibidos y su estado</p>
+        </div>
+        <Link
+          href="/dashboard"
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+        >
+          ← Volver al Dashboard
+        </Link>
+      </div>
+
+      {/* Filtro por flujo */}
+      <div className="mb-6 bg-white rounded-lg shadow p-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Filtrar por flujo:
+        </label>
+        <select
+          value={selectedFlowId || ''}
+          onChange={(e) => setSelectedFlowId(e.target.value || null)}
+          className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">Todos los flujos</option>
+          {flows.map((flow) => (
+            <option key={flow.id} value={flow.id}>
+              {flow.name} ({flow.id})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="text-gray-500">Cargando webhooks...</div>
+        </div>
+      ) : webhooks.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <p className="text-gray-500 mb-4">No hay webhooks registrados aún.</p>
+          <p className="text-sm text-gray-400">
+            Los webhooks aparecerán aquí cuando se reciban en tus flujos.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {webhooks.map((webhook) => (
+            <div
+              key={webhook.id}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        webhook.result?.success
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {webhook.result?.success ? '✓ Exitoso' : '✗ Error'}
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      {webhook.flowName || webhook.flowId}
+                    </span>
+                    {webhook.flowId && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                        {webhook.flowId}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {formatDate(webhook.timestamp)}
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    setExpandedWebhook(
+                      expandedWebhook === webhook.id ? null : webhook.id
+                    )
+                  }
+                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  {expandedWebhook === webhook.id ? 'Ocultar' : 'Ver detalles'}
+                </button>
+              </div>
+
+              {(webhook.destino || webhook.method) && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-600 font-medium">Endpoint destino:</p>
+                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-mono">
+                      {webhook.method || 'POST'}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <code className="flex-1 text-xs text-gray-700 break-all bg-gray-50 p-2 rounded">
+                      {webhook.destino || 'N/A'}
+                    </code>
+                    {webhook.destino && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(webhook.destino);
+                          alert('URL copiada al portapapeles');
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                        title="Copiar URL"
+                      >
+                        📋
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Estado HTTP</p>
+                  <p className="text-sm font-medium">
+                    {webhook.result?.status || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Tiempo de respuesta</p>
+                  <p className="text-sm font-medium">
+                    {formatTime(webhook.result?.responseTime)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Mensaje</p>
+                  <p className="text-sm font-medium truncate">
+                    {webhook.result?.message || webhook.result?.error || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {expandedWebhook === webhook.id && (
+                <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Datos recibidos:
+                    </h3>
+                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                      {JSON.stringify(webhook.incomingData || {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Datos mapeados enviados:
+                    </h3>
+                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                      {JSON.stringify(webhook.mappedData || {}, null, 2)}
+                    </pre>
+                  </div>
+                  {webhook.result && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                        Resultado completo:
+                      </h3>
+                      <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                        {JSON.stringify(webhook.result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

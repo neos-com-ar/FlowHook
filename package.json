@@ -1,0 +1,31 @@
+{
+  "name": "flowhook",
+  "version": "1.0.0",
+  "description": "Plataforma SaaS para administrar múltiples flujos de webhooks configurables por usuario",
+  "private": true,
+  "scripts": {
+    "predev": "node -e \"const v=process.version.slice(1).split('.').map(Number);if(v[0]<18||(v[0]===18&&v[1]<17)){console.error('❌ Node.js >= 18.17.0 requerido. Ejecuta: nvm use');process.exit(1)}\"",
+    "prebuild": "node -e \"const v=process.version.slice(1).split('.').map(Number);if(v[0]<18||(v[0]===18&&v[1]<17)){console.error('❌ Node.js >= 18.17.0 requerido. Ejecuta: nvm use');process.exit(1)}\"",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "use-node": "powershell -ExecutionPolicy Bypass -File scripts/use-node-version.ps1"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "axios": "^1.7.0",
+    "next-auth": "^4.24.0",
+    "@vercel/kv": "^0.2.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0"
+  }
+}
+
