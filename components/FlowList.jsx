@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FlowEditor from './FlowEditor';
 
-export default function FlowList() {
+export default function FlowList({ projectId }) {
   const { data: session } = useSession();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +24,15 @@ export default function FlowList() {
     if (session) {
       fetchFlows();
     }
-  }, [session]);
+  }, [session, projectId]);
 
   const fetchFlows = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/flows');
+      const url = projectId 
+        ? `/api/flows?projectId=${projectId}`
+        : '/api/flows';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setFlows(data.flows || []);
@@ -49,14 +52,18 @@ export default function FlowList() {
     }
 
     try {
-      const response = await fetch(`/api/flows?flowId=${flowId}`, {
+      const url = projectId
+        ? `/api/flows?flowId=${flowId}&projectId=${projectId}`
+        : `/api/flows?flowId=${flowId}`;
+      const response = await fetch(url, {
         method: 'DELETE',
       });
 
       if (response.ok) {
         setFlows(flows.filter((f) => f.id !== flowId));
       } else {
-        alert('Error al eliminar el flujo');
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Error al eliminar el flujo'}`);
       }
     } catch (error) {
       console.error('Error deleting flow:', error);
@@ -104,6 +111,7 @@ export default function FlowList() {
           flowId: duplicatingFlow.id,
           newId: trimmedId,
           newName: trimmedName,
+          projectId: projectId || duplicatingFlow.projectId,
         }),
       });
 
@@ -138,6 +146,10 @@ export default function FlowList() {
   };
 
   const handleNewFlow = () => {
+    if (!projectId) {
+      alert('Por favor, selecciona un proyecto primero');
+      return;
+    }
     setEditingFlow(null);
     setShowEditor(true);
   };
@@ -328,6 +340,7 @@ export default function FlowList() {
               destino: flow.destino,
               method: method,
               map: flow.map || {},
+              projectId: projectId || flow.projectId,
             }),
           });
 
@@ -405,6 +418,7 @@ export default function FlowList() {
     return (
       <FlowEditor
         flow={editingFlow}
+        projectId={projectId}
         onSave={handleSave}
         onCancel={() => {
           setShowEditor(false);

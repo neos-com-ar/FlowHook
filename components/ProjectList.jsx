@@ -1,0 +1,272 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import ProjectEditor from './ProjectEditor';
+import ProjectPermissions from './ProjectPermissions';
+import FlowList from './FlowList';
+
+export default function ProjectList() {
+  const { data: session } = useSession();
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editingProject, setEditingProject] = useState(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showPermissions, setShowPermissions] = useState(false);
+  const [permissionsProjectId, setPermissionsProjectId] = useState(null);
+
+  useEffect(() => {
+    if (session) {
+      fetchProjects();
+    }
+  }, [session]);
+
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/projects');
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []);
+      } else {
+        console.error('Error fetching projects');
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewProject = () => {
+    setEditingProject(null);
+    setShowEditor(true);
+  };
+
+  const handleEditProject = (project) => {
+    setEditingProject(project);
+    setShowEditor(true);
+  };
+
+  const handleDeleteProject = async (projectId) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este proyecto? Todos los flujos del proyecto también se eliminarán.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/projects?projectId=${projectId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setProjects(projects.filter(p => p.id !== projectId));
+        if (selectedProject?.id === projectId) {
+          setSelectedProject(null);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Error al eliminar el proyecto'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Error al eliminar el proyecto');
+    }
+  };
+
+  const handleSave = () => {
+    setShowEditor(false);
+    setEditingProject(null);
+    fetchProjects();
+  };
+
+  const handleOpenPermissions = (projectId) => {
+    setPermissionsProjectId(projectId);
+    setShowPermissions(true);
+  };
+
+  const handleClosePermissions = () => {
+    setShowPermissions(false);
+    setPermissionsProjectId(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="text-gray-500">Cargando proyectos...</div>
+      </div>
+    );
+  }
+
+  if (showEditor) {
+    return (
+      <ProjectEditor
+        project={editingProject}
+        onSave={handleSave}
+        onCancel={() => {
+          setShowEditor(false);
+          setEditingProject(null);
+        }}
+      />
+    );
+  }
+
+  if (showPermissions && permissionsProjectId) {
+    return (
+      <ProjectPermissions
+        projectId={permissionsProjectId}
+        onClose={handleClosePermissions}
+      />
+    );
+  }
+
+  if (selectedProject) {
+    return (
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setSelectedProject(null)}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              ← Volver a proyectos
+            </button>
+            <div className="flex items-center space-x-2">
+              <span className="text-2xl">{selectedProject.icon}</span>
+              <h1 className="text-2xl font-bold text-gray-900">{selectedProject.name}</h1>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleOpenPermissions(selectedProject.id)}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              👥 Permisos
+            </button>
+            <button
+              onClick={() => handleEditProject(selectedProject)}
+              className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
+            >
+              ✏️ Editar
+            </button>
+          </div>
+        </div>
+        {selectedProject.description && (
+          <p className="text-gray-600 mb-4">{selectedProject.description}</p>
+        )}
+        <FlowList projectId={selectedProject.id} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
+        <button
+          onClick={handleNewProject}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+        >
+          + Nuevo Proyecto
+        </button>
+      </div>
+
+      {projects.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <p className="text-gray-500 mb-4">No tienes proyectos configurados aún.</p>
+          <button
+            onClick={handleNewProject}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          >
+            Crear tu primer proyecto
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {projects.map((project) => {
+            const isPersonal = project.isPersonal !== false;
+            return (
+              <div
+                key={project.id}
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedProject(project)}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-3xl">{project.icon || '📁'}</span>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">{project.name}</h2>
+                      {!isPersonal && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          Compartido
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: project.color || '#3B82F6' }}
+                    title={`Color: ${project.color}`}
+                  />
+                </div>
+
+                {project.description && (
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                  <span>Creado: {new Date(project.createdAt).toLocaleDateString()}</span>
+                </div>
+
+                <div className="flex space-x-2 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedProject(project);
+                    }}
+                    className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
+                  >
+                    📂 Abrir
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenPermissions(project.id);
+                    }}
+                    className="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Gestionar permisos"
+                  >
+                    👥
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditProject(project);
+                    }}
+                    className="px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
+                    title="Editar proyecto"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(project.id);
+                    }}
+                    className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+                    title="Eliminar proyecto"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+

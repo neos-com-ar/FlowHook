@@ -6,6 +6,12 @@ import {
   getFlow,
   saveFlow,
   deleteFlow,
+  getAllFlowsForUser,
+  saveFlowInProject,
+  getProjectFlows,
+  deleteFlowFromProject,
+  checkProjectAccess,
+  getFlow as getFlowFromProject,
 } from '@/lib/db';
 
 // Marcar como dinámico porque usa headers (getServerSession)
@@ -25,7 +31,29 @@ export async function GET(request) {
     }
 
     const userId = session.user.id;
-    const flows = await getUserFlows(userId);
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+
+    let flows;
+    if (projectId) {
+      // Obtener flujos de un proyecto específico
+      const hasAccess = await checkProjectAccess(userId, projectId, 'viewer');
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Project not found or access denied' },
+          { status: 404 }
+        );
+      }
+      flows = await getProjectFlows(projectId);
+    } else {
+      // Obtener todos los flujos accesibles (de todos los proyectos)
+      flows = await getAllFlowsForUser(userId);
+      
+      // También incluir flujos antiguos sin proyecto (para compatibilidad)
+      const oldFlows = await getUserFlows(userId);
+      const oldFlowsWithoutProject = oldFlows.filter(f => !f.projectId);
+      flows = [...flows, ...oldFlowsWithoutProject];
+    }
 
     return NextResponse.json({ flows });
   } catch (error) {
@@ -57,6 +85,23 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Missing required fields: id, name, destino' },
         { status: 400 }
+      );
+    }
+
+    // Validar projectId (requerido ahora)
+    if (!body.projectId) {
+      return NextResponse.json(
+        { error: 'Missing required field: projectId' },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que el usuario tiene permisos de editor en el proyecto
+    const hasAccess = await checkProjectAccess(userId, body.projectId, 'editor');
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit flows in this project' },
+        { status: 403 }
       );
     }
 
@@ -94,9 +139,11 @@ export async function POST(request) {
       destino: body.destino,
       method: method,
       map: body.map || {},
+      ownerId: userId,
     };
 
-    const success = await saveFlow(userId, flow);
+    // Guardar en el proyecto
+    const success = await saveFlowInProject(body.projectId, flow);
 
     if (!success) {
       return NextResponse.json(
@@ -107,7 +154,10 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      flow,
+      flow: {
+        ...flow,
+        projectId: body.projectId,
+      },
     });
   } catch (error) {
     console.error('Error saving flow:', error);
@@ -132,17 +182,27 @@ export async function PUT(request) {
 
     const userId = session.user.id;
     const body = await request.json();
-    const { flowId, newId, newName } = body;
+    const { flowId, newId, newName, projectId } = body;
 
-    if (!flowId) {
+    if (!flowId || !projectId) {
       return NextResponse.json(
-        { error: 'Missing flowId parameter' },
+        { error: 'Missing flowId or projectId parameter' },
         { status: 400 }
       );
     }
 
-    // Obtener el flujo original
-    const originalFlow = await getFlow(userId, flowId);
+    // Verificar permisos del proyecto
+    const hasAccess = await checkProjectAccess(userId, projectId, 'editor');
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit flows in this project' },
+        { status: 403 }
+      );
+    }
+
+    // Obtener el flujo original del proyecto
+    const projectFlows = await getProjectFlows(projectId);
+    const originalFlow = projectFlows.find(f => f.id === flowId);
     if (!originalFlow) {
       return NextResponse.json(
         { error: 'Flow not found' },
@@ -166,11 +226,11 @@ export async function PUT(request) {
       );
     }
 
-    // Verificar que el nuevo ID no exista ya
-    const existingFlow = await getFlow(userId, newId);
+    // Verificar que el nuevo ID no exista ya en el proyecto
+    const existingFlow = projectFlows.find(f => f.id === newId);
     if (existingFlow) {
       return NextResponse.json(
-        { error: 'A flow with this ID already exists' },
+        { error: 'A flow with this ID already exists in this project' },
         { status: 400 }
       );
     }
@@ -182,9 +242,10 @@ export async function PUT(request) {
       destino: originalFlow.destino,
       method: originalFlow.method || 'POST',
       map: originalFlow.map ? { ...originalFlow.map } : {},
+      ownerId: userId,
     };
 
-    const success = await saveFlow(userId, duplicatedFlow);
+    const success = await saveFlowInProject(projectId, duplicatedFlow);
 
     if (!success) {
       return NextResponse.json(
@@ -195,7 +256,10 @@ export async function PUT(request) {
 
     return NextResponse.json({
       success: true,
-      flow: duplicatedFlow,
+      flow: {
+        ...duplicatedFlow,
+        projectId,
+      },
       message: 'Flow duplicated successfully',
     });
   } catch (error) {
@@ -222,6 +286,7 @@ export async function DELETE(request) {
     const userId = session.user.id;
     const { searchParams } = new URL(request.url);
     const flowId = searchParams.get('flowId');
+    const projectId = searchParams.get('projectId');
 
     if (!flowId) {
       return NextResponse.json(
@@ -230,16 +295,30 @@ export async function DELETE(request) {
       );
     }
 
-    // Verificar que el flujo pertenece al usuario
-    const flow = await getFlow(userId, flowId);
-    if (!flow) {
-      return NextResponse.json(
-        { error: 'Flow not found' },
-        { status: 404 }
-      );
-    }
+    let success;
+    if (projectId) {
+      // Eliminar de proyecto
+      const hasAccess = await checkProjectAccess(userId, projectId, 'editor');
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'You do not have permission to delete flows in this project' },
+          { status: 403 }
+        );
+      }
 
-    const success = await deleteFlow(userId, flowId);
+      success = await deleteFlowFromProject(projectId, flowId);
+    } else {
+      // Eliminar flujo antiguo (sin proyecto) - para compatibilidad
+      const flow = await getFlow(userId, flowId);
+      if (!flow) {
+        return NextResponse.json(
+          { error: 'Flow not found' },
+          { status: 404 }
+        );
+      }
+
+      success = await deleteFlow(userId, flowId);
+    }
 
     if (!success) {
       return NextResponse.json(

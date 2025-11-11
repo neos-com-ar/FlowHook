@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import FlowList from '@/components/FlowList';
+import ProjectList from '@/components/ProjectList';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -45,7 +45,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <FlowList />
+      <ProjectList />
     </div>
   );
 }

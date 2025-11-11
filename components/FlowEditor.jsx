@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 const TEMPLATE_PLACEHOLDER = '{{ruta}}';
 const TEMPLATE_PLACEHOLDER_QUOTED = `"${TEMPLATE_PLACEHOLDER}"`;
 
-export default function FlowEditor({ flow, onSave, onCancel }) {
+export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -392,7 +392,13 @@ export default function FlowEditor({ flow, onSave, onCancel }) {
     const flowData = {
       ...formData,
       map,
+      projectId: projectId || flow?.projectId,
     };
+
+    if (!flowData.projectId) {
+      alert('Error: No se especificó el proyecto. Por favor, selecciona un proyecto.');
+      return;
+    }
 
     try {
       const response = await fetch('/api/flows', {
@@ -416,6 +422,24 @@ export default function FlowEditor({ flow, onSave, onCancel }) {
       setLoading(false);
     }
   };
+
+  if (!projectId && !flow?.projectId) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">Error: No se especificó el proyecto.</p>
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+            >
+              Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
