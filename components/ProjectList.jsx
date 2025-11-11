@@ -6,6 +6,18 @@ import ProjectEditor from './ProjectEditor';
 import ProjectPermissions from './ProjectPermissions';
 import FlowList from './FlowList';
 
+// Función helper para convertir color hex a rgba con opacidad
+const hexToRgba = (hex, opacity) => {
+  if (!hex || !hex.match(/^#[0-9A-Fa-f]{6}$/)) {
+    // Si el color no es válido, usar un color por defecto (azul)
+    hex = '#3B82F6';
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
 export default function ProjectList() {
   const { data: session } = useSession();
   const [projects, setProjects] = useState([]);
@@ -166,6 +178,7 @@ export default function ProjectList() {
   }
 
   if (selectedProject) {
+    const projectColor = selectedProject.color || '#3B82F6';
     return (
       <div>
         <div className="mb-4 flex items-center justify-between">
@@ -199,7 +212,7 @@ export default function ProjectList() {
         {selectedProject.description && (
           <p className="text-gray-600 mb-4">{selectedProject.description}</p>
         )}
-        <FlowList projectId={selectedProject.id} />
+        <FlowList projectId={selectedProject.id} projectColor={projectColor} />
       </div>
     );
   }
@@ -251,10 +264,13 @@ export default function ProjectList() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
             const isPersonal = project.isPersonal !== false;
+            const projectColor = project.color || '#3B82F6';
+            const backgroundColor = hexToRgba(projectColor, 0.1);
             return (
               <div
                 key={project.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                className="rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                style={{ backgroundColor: backgroundColor }}
                 onClick={() => setSelectedProject(project)}
               >
                 <div className="flex justify-between items-start mb-4">

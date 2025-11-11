@@ -5,7 +5,19 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FlowEditor from './FlowEditor';
 
-export default function FlowList({ projectId }) {
+// Función helper para convertir color hex a rgba con opacidad
+const hexToRgba = (hex, opacity) => {
+  if (!hex || !hex.match(/^#[0-9A-Fa-f]{6}$/)) {
+    // Si el color no es válido, usar un color por defecto (azul)
+    hex = '#3B82F6';
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+export default function FlowList({ projectId, projectColor }) {
   const { data: session } = useSession();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -498,8 +510,17 @@ export default function FlowList({ projectId }) {
     );
   }
 
+  // Obtener color de fondo basado en el color del proyecto
+  const getBackgroundColor = () => {
+    if (!projectColor) return 'transparent';
+    return hexToRgba(projectColor, 0.05);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div 
+      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 rounded-lg"
+      style={{ backgroundColor: getBackgroundColor() }}
+    >
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Mis Flujos de Webhooks</h1>
         <div className="flex gap-2">
