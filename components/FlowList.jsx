@@ -19,6 +19,11 @@ export default function FlowList({ projectId }) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [flowsToImport, setFlowsToImport] = useState([]);
   const [selectedFlowsToImport, setSelectedFlowsToImport] = useState({});
+  const [movingFlow, setMovingFlow] = useState(null);
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -152,6 +157,71 @@ export default function FlowList({ projectId }) {
     }
     setEditingFlow(null);
     setShowEditor(true);
+  };
+
+  const handleMoveClick = async (flow) => {
+    setMovingFlow(flow);
+    setLoadingProjects(true);
+    try {
+      const response = await fetch('/api/projects');
+      if (response.ok) {
+        const data = await response.json();
+        // Si hay projectId, filtrar el proyecto actual; si no, mostrar todos
+        const filtered = projectId
+          ? (data.projects || []).filter(p => p.id !== projectId)
+          : (data.projects || []);
+        setAvailableProjects(filtered);
+        setMoveModalOpen(true);
+      } else {
+        alert('Error al cargar proyectos');
+      }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      alert('Error al cargar proyectos');
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  const handleMoveConfirm = async (targetProjectId) => {
+    if (!movingFlow) {
+      return;
+    }
+
+    setMoving(true);
+    try {
+      const response = await fetch('/api/flows/move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          flowId: movingFlow.id,
+          fromProjectId: projectId || null, // null si viene de flujos sin proyecto
+          toProjectId: targetProjectId,
+        }),
+      });
+
+      if (response.ok) {
+        setMoveModalOpen(false);
+        setMovingFlow(null);
+        fetchFlows(); // Recargar la lista
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Error al mover el flujo'}`);
+      }
+    } catch (error) {
+      console.error('Error moving flow:', error);
+      alert('Error al mover el flujo');
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  const handleMoveCancel = () => {
+    setMoveModalOpen(false);
+    setMovingFlow(null);
+    setAvailableProjects([]);
   };
 
   const handleSave = () => {
@@ -549,6 +619,13 @@ export default function FlowList({ projectId }) {
                       📊 Ver Historial
                     </Link>
                     <button
+                      onClick={() => handleMoveClick(flow)}
+                      className="px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
+                      title="Mover a otro proyecto"
+                    >
+                      📦 Mover
+                    </button>
+                    <button
                       onClick={() => handleExportSingleFlow(flow)}
                       className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
                       title="Exportar este flujo"
@@ -764,6 +841,82 @@ export default function FlowList({ projectId }) {
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {duplicating ? 'Duplicando...' : 'Duplicar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de mover flujo */}
+      {moveModalOpen && movingFlow && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                Mover Flujo
+              </h3>
+              <button
+                onClick={handleMoveCancel}
+                className="text-gray-500 hover:text-gray-700"
+                disabled={moving}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                {projectId 
+                  ? `Mover "${movingFlow.name}" a otro proyecto:`
+                  : `Mover "${movingFlow.name}" a un proyecto:`
+                }
+              </p>
+              {loadingProjects ? (
+                <div className="text-center py-4">
+                  <div className="text-gray-500">Cargando proyectos...</div>
+                </div>
+              ) : availableProjects.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-500 mb-2">No hay otros proyectos disponibles.</p>
+                  <p className="text-xs text-gray-400">Crea un nuevo proyecto primero.</p>
+                </div>
+              ) : (
+                <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto">
+                  {availableProjects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => handleMoveConfirm(project.id)}
+                      disabled={moving}
+                      className="w-full flex items-center space-x-3 p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-2xl">{project.icon || '📁'}</span>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-gray-900">{project.name}</p>
+                        {project.description && (
+                          <p className="text-xs text-gray-500 truncate">{project.description}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400">→</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+              <p className="text-xs text-blue-800">
+                <strong>Nota:</strong> El flujo se moverá al proyecto seleccionado. 
+                Asegúrate de tener permisos de editor en ambos proyectos.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={handleMoveCancel}
+                disabled={moving}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancelar
               </button>
             </div>
           </div>

@@ -15,10 +15,13 @@ export default function ProjectList() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showPermissions, setShowPermissions] = useState(false);
   const [permissionsProjectId, setPermissionsProjectId] = useState(null);
+  const [orphanFlows, setOrphanFlows] = useState([]);
+  const [showOrphanFlows, setShowOrphanFlows] = useState(false);
 
   useEffect(() => {
     if (session) {
       fetchProjects();
+      fetchOrphanFlows();
     }
   }, [session]);
 
@@ -36,6 +39,20 @@ export default function ProjectList() {
       console.error('Error fetching projects:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrphanFlows = async () => {
+    try {
+      const response = await fetch('/api/flows');
+      if (response.ok) {
+        const data = await response.json();
+        // Filtrar flujos sin projectId
+        const orphan = (data.flows || []).filter(f => !f.projectId);
+        setOrphanFlows(orphan);
+      }
+    } catch (error) {
+      console.error('Error fetching orphan flows:', error);
     }
   };
 
@@ -120,6 +137,34 @@ export default function ProjectList() {
     );
   }
 
+  if (showOrphanFlows) {
+    return (
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowOrphanFlows(false)}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              ← Volver a proyectos
+            </button>
+            <div className="flex items-center space-x-2">
+              <span className="text-2xl">📦</span>
+              <h1 className="text-2xl font-bold text-gray-900">Flujos sin Proyecto</h1>
+            </div>
+          </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+          <p className="text-sm text-yellow-800">
+            <strong>⚠️ Nota:</strong> Estos flujos no pertenecen a ningún proyecto. 
+            Te recomendamos migrarlos a un proyecto para mejor organización.
+          </p>
+        </div>
+        <FlowList projectId={null} />
+      </div>
+    );
+  }
+
   if (selectedProject) {
     return (
       <div>
@@ -170,6 +215,27 @@ export default function ProjectList() {
           + Nuevo Proyecto
         </button>
       </div>
+
+      {orphanFlows.length > 0 && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-900 mb-1">
+                📦 Flujos sin Proyecto ({orphanFlows.length})
+              </h3>
+              <p className="text-sm text-yellow-700">
+                Tienes {orphanFlows.length} flujo(s) que no pertenecen a ningún proyecto.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOrphanFlows(true)}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+            >
+              Ver Flujos
+            </button>
+          </div>
+        </div>
+      )}
 
       {projects.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
