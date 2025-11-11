@@ -15,6 +15,10 @@ export default function FlowList() {
   const [newFlowId, setNewFlowId] = useState('');
   const [newFlowName, setNewFlowName] = useState('');
   const [duplicating, setDuplicating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [flowsToImport, setFlowsToImport] = useState([]);
+  const [selectedFlowsToImport, setSelectedFlowsToImport] = useState({});
 
   useEffect(() => {
     if (session) {
@@ -155,6 +159,240 @@ export default function FlowList() {
     alert('URL copiada al portapapeles');
   };
 
+  const handleExportFlows = () => {
+    if (flows.length === 0) {
+      alert('No hay flujos para exportar');
+      return;
+    }
+
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      flows: flows,
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `flowhook-flujos-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSingleFlow = (flow) => {
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      flows: [flow],
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    // Usar el ID del flujo en el nombre del archivo, sanitizado para nombres de archivo
+    const safeId = flow.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `flowhook-${safeId}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const jsonData = JSON.parse(event.target.result);
+          
+          // Validar estructura del archivo
+          if (!jsonData.flows || !Array.isArray(jsonData.flows)) {
+            alert('El archivo no tiene un formato válido. Debe contener un array "flows".');
+            return;
+          }
+
+          if (jsonData.flows.length === 0) {
+            alert('El archivo no contiene flujos para importar.');
+            return;
+          }
+
+          // Validar cada flujo
+          const validFlows = [];
+          for (const flow of jsonData.flows) {
+            if (!flow.id || !flow.name || !flow.destino) {
+              console.warn('Flujo inválido omitido:', flow);
+              continue;
+            }
+            validFlows.push(flow);
+          }
+
+          if (validFlows.length === 0) {
+            alert('No se encontraron flujos válidos en el archivo.');
+            return;
+          }
+
+          // Inicializar selección (todos seleccionados por defecto)
+          const initialSelection = {};
+          validFlows.forEach((flow) => {
+            initialSelection[flow.id] = true;
+          });
+          setSelectedFlowsToImport(initialSelection);
+          setFlowsToImport(validFlows);
+          setImportModalOpen(true);
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          alert('Error al leer el archivo. Asegúrate de que sea un archivo JSON válido.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const handleImportConfirm = async () => {
+    const flowsToImportList = flowsToImport.filter(
+      (flow) => selectedFlowsToImport[flow.id]
+    );
+
+    if (flowsToImportList.length === 0) {
+      alert('Por favor, selecciona al menos un flujo para importar.');
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      for (const flow of flowsToImportList) {
+        try {
+          // Verificar si el flujo ya existe
+          const existingFlow = flows.find((f) => f.id === flow.id);
+          if (existingFlow) {
+            // Preguntar si quiere sobrescribir
+            const overwrite = confirm(
+              `El flujo "${flow.name}" (ID: ${flow.id}) ya existe. ¿Deseas sobrescribirlo?`
+            );
+            if (!overwrite) {
+              continue;
+            }
+          }
+
+          // Validar formato del ID
+          if (!/^[a-zA-Z0-9_-]+$/.test(flow.id)) {
+            errors.push(`Flujo "${flow.name}": ID inválido`);
+            errorCount++;
+            continue;
+          }
+
+          // Validar URL del destino
+          try {
+            new URL(flow.destino);
+          } catch {
+            errors.push(`Flujo "${flow.name}": URL de destino inválida`);
+            errorCount++;
+            continue;
+          }
+
+          // Validar método HTTP
+          const allowedMethods = ['POST', 'PUT', 'PATCH'];
+          const method = flow.method ? flow.method.toUpperCase() : 'POST';
+          if (!allowedMethods.includes(method)) {
+            errors.push(`Flujo "${flow.name}": Método HTTP inválido`);
+            errorCount++;
+            continue;
+          }
+
+          const response = await fetch('/api/flows', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: flow.id,
+              name: flow.name,
+              destino: flow.destino,
+              method: method,
+              map: flow.map || {},
+            }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            const error = await response.json();
+            errors.push(`Flujo "${flow.name}": ${error.error || 'Error desconocido'}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error importing flow ${flow.id}:`, error);
+          errors.push(`Flujo "${flow.name}": Error al importar`);
+          errorCount++;
+        }
+      }
+
+      // Cerrar modal y mostrar resultados
+      setImportModalOpen(false);
+      setFlowsToImport([]);
+      setSelectedFlowsToImport({});
+
+      let message = `Importación completada:\n- ${successCount} flujo(s) importado(s) correctamente`;
+      if (errorCount > 0) {
+        message += `\n- ${errorCount} flujo(s) con errores`;
+        if (errors.length > 0) {
+          message += '\n\nErrores:\n' + errors.join('\n');
+        }
+      }
+      alert(message);
+
+      // Recargar la lista de flujos
+      fetchFlows();
+    } catch (error) {
+      console.error('Error importing flows:', error);
+      alert('Error al importar los flujos');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportCancel = () => {
+    setImportModalOpen(false);
+    setFlowsToImport([]);
+    setSelectedFlowsToImport({});
+  };
+
+  const toggleFlowSelection = (flowId) => {
+    setSelectedFlowsToImport((prev) => ({
+      ...prev,
+      [flowId]: !prev[flowId],
+    }));
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = flowsToImport.every(
+      (flow) => selectedFlowsToImport[flow.id]
+    );
+    const newSelection = {};
+    flowsToImport.forEach((flow) => {
+      newSelection[flow.id] = !allSelected;
+    });
+    setSelectedFlowsToImport(newSelection);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -180,12 +418,29 @@ export default function FlowList() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Mis Flujos de Webhooks</h1>
-        <button
-          onClick={handleNewFlow}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-        >
-          + Nuevo Flujo
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportFlows}
+            disabled={flows.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exportar todos los flujos a un archivo JSON"
+          >
+            📤 Exportar
+          </button>
+          <button
+            onClick={handleImportClick}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            title="Importar flujos desde un archivo JSON"
+          >
+            📥 Importar
+          </button>
+          <button
+            onClick={handleNewFlow}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          >
+            + Nuevo Flujo
+          </button>
+        </div>
       </div>
 
       {flows.length === 0 ? (
@@ -262,7 +517,7 @@ export default function FlowList() {
                       onClick={() => handleEdit(flow)}
                       className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
                     >
-                      Editar
+                      ✏️ Editar
                     </button>
                     <button
                       onClick={() => handleDuplicateClick(flow)}
@@ -277,19 +532,135 @@ export default function FlowList() {
                       href={`/dashboard/webhooks?flowId=${flow.id}`}
                       className="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-center"
                     >
-                      Ver Historial
+                      📊 Ver Historial
                     </Link>
+                    <button
+                      onClick={() => handleExportSingleFlow(flow)}
+                      className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                      title="Exportar este flujo"
+                    >
+                      📤 Exportar
+                    </button>
                     <button
                       onClick={() => handleDelete(flow.id)}
                       className="flex-1 px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
                     >
-                      Eliminar
+                      🗑️ Eliminar
                     </button>
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de importar flujos */}
+      {importModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                Importar Flujos
+              </h3>
+              <button
+                onClick={handleImportCancel}
+                className="text-gray-500 hover:text-gray-700"
+                disabled={importing}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Selecciona los flujos que deseas importar:
+              </p>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm text-gray-700">
+                  {flowsToImport.filter((f) => selectedFlowsToImport[f.id]).length} de {flowsToImport.length} seleccionados
+                </span>
+                <button
+                  onClick={toggleSelectAll}
+                  className="text-sm text-indigo-600 hover:text-indigo-700"
+                  disabled={importing}
+                >
+                  {flowsToImport.every((f) => selectedFlowsToImport[f.id])
+                    ? 'Deseleccionar todos'
+                    : 'Seleccionar todos'}
+                </button>
+              </div>
+              <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto">
+                {flowsToImport.map((flow) => (
+                  <div
+                    key={flow.id}
+                    className="flex items-start p-3 border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFlowsToImport[flow.id] || false}
+                      onChange={() => toggleFlowSelection(flow.id)}
+                      disabled={importing}
+                      className="mt-1 mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900">{flow.name}</h4>
+                        <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded">
+                          {flow.id}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 truncate">
+                        {flow.destino}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                          {flow.method || 'POST'}
+                        </span>
+                        {flow.map && Object.keys(flow.map).length > 0 && (
+                          <span className="text-xs text-gray-500">
+                            {Object.keys(flow.map).length} mapeo(s)
+                          </span>
+                        )}
+                      </div>
+                      {flows.find((f) => f.id === flow.id) && (
+                        <span className="inline-block mt-1 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                          Ya existe (se sobrescribirá)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+              <p className="text-xs text-blue-800">
+                <strong>Nota:</strong> Los flujos con IDs que ya existen serán sobrescritos. 
+                Se te pedirá confirmación para cada uno.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={handleImportCancel}
+                disabled={importing}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleImportConfirm}
+                disabled={
+                  importing ||
+                  flowsToImport.filter((f) => selectedFlowsToImport[f.id]).length === 0
+                }
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {importing ? 'Importando...' : 'Importar Seleccionados'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

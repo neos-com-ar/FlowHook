@@ -4,30 +4,66 @@ import GoogleProvider from 'next-auth/providers/google';
 import EmailProvider from 'next-auth/providers/email';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import Adapter from '@/lib/adapter';
+import bcrypt from 'bcryptjs';
 
 console.log('🔧 Inicializando NextAuth...');
 
 // Construir array de proveedores dinámicamente
 const providers = [];
 
-// Credentials Provider (usuario/contraseña simple)
+// Credentials Provider (email/contraseña)
+// Nota: El adapter se inicializa en authOptions, pero necesitamos una instancia para el CredentialsProvider
+// Por eso creamos una función helper que obtiene el adapter cuando sea necesario
+const getAdapter = () => Adapter();
+
+// Solo agregar CredentialsProvider si hay usuarios con contraseña en el sistema
+// Esto permite login con email + contraseña para usuarios que se registraron por email
 providers.push(
   CredentialsProvider({
     name: 'Credenciales',
     credentials: {
-      username: { label: 'Usuario', type: 'text' },
+      email: { label: 'Email', type: 'email' },
       password: { label: 'Contraseña', type: 'password' }
     },
     async authorize(credentials) {
-      // Usuario y contraseña simple para desarrollo
-      if (credentials?.username === 'admin' && credentials?.password === 'admin') {
+      try {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const adapter = getAdapter();
+        // Buscar usuario por email
+        const user = await adapter.getUserByEmail(credentials.email);
+        
+        if (!user) {
+          console.log('Usuario no encontrado:', credentials.email);
+          return null;
+        }
+
+        // Verificar si el usuario tiene contraseña
+        if (!user.password || !user.hasPassword) {
+          console.log('Usuario no tiene contraseña establecida:', credentials.email);
+          return null;
+        }
+
+        // Verificar contraseña
+        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+        
+        if (!isPasswordValid) {
+          console.log('Contraseña incorrecta para usuario:', credentials.email);
+          return null;
+        }
+
+        // Retornar usuario si la contraseña es correcta
         return {
-          id: 'admin',
-          name: 'Administrador',
-          email: 'admin@flowhook.com',
+          id: user.id,
+          email: user.email,
+          name: user.name || user.email.split('@')[0],
         };
+      } catch (error) {
+        console.error('Error en authorize:', error);
+        return null;
       }
-      return null;
     }
   })
 );
@@ -88,17 +124,35 @@ if (
       };
     }
 
+    // Para Hostinger y la mayoría de servidores SMTP, el remitente (from) debe ser el mismo
+    // que el usuario autenticado, o un alias válido. Por seguridad, usamos SMTP_USER como predeterminado.
+    // Si SMTP_FROM está configurado y es diferente, solo lo usamos si el usuario lo necesita explícitamente.
+    // Para evitar errores, priorizamos SMTP_USER sobre SMTP_FROM.
+    const smtpFrom = process.env.SMTP_USER || process.env.SMTP_FROM || 'noreply@example.com';
+    
+    // Advertencia si SMTP_FROM está configurado pero es diferente a SMTP_USER
+    if (process.env.SMTP_FROM && process.env.SMTP_FROM !== process.env.SMTP_USER) {
+      console.warn('⚠️  SMTP_FROM es diferente a SMTP_USER. Algunos servidores SMTP (como Hostinger) requieren que el remitente sea el mismo que el usuario autenticado.');
+      console.warn(`   SMTP_USER: ${process.env.SMTP_USER}`);
+      console.warn(`   SMTP_FROM: ${process.env.SMTP_FROM}`);
+      console.warn(`   Usando SMTP_USER como remitente para evitar errores.`);
+    }
+    
     console.log('📧 Configurando EmailProvider con:', {
       host: smtpConfig.host,
       port: smtpConfig.port,
       secure: smtpConfig.secure,
       user: smtpConfig.auth.user,
+      from: smtpFrom,
+      nextauthUrl: process.env.NEXTAUTH_URL || 'NO CONFIGURADO',
     });
 
+    // NextAuth enviará el email automáticamente usando la configuración SMTP
+    // No necesitamos un callback personalizado a menos que queramos personalizar el contenido del email
     providers.push(
       EmailProvider({
         server: smtpConfig,
-        from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com',
+        from: smtpFrom,
       })
     );
     
@@ -120,6 +174,27 @@ if (providers.length === 0) {
 if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.trim() === '') {
   console.error('⚠️  NEXTAUTH_SECRET no está configurado. Esto es requerido para NextAuth.');
   // No lanzar error aquí, solo loguear
+}
+
+// Validar que NEXTAUTH_URL esté configurado (CRÍTICO para emails)
+// NextAuth necesita NEXTAUTH_URL para generar los enlaces de verificación en los emails
+if (!process.env.NEXTAUTH_URL) {
+  console.error('❌ NEXTAUTH_URL no está configurado. Esto IMPIDE el envío de emails.');
+  console.error('   En desarrollo, agrega a .env.local: NEXTAUTH_URL=http://localhost:3000');
+  console.error('   En producción, agrega: NEXTAUTH_URL=https://tu-dominio.com');
+  console.error('   SIN NEXTAUTH_URL, los emails NO SE ENVIARÁN correctamente.');
+} else {
+  console.log('✅ NEXTAUTH_URL configurado:', process.env.NEXTAUTH_URL);
+  
+  // Validar que la URL sea válida
+  try {
+    const url = new URL(process.env.NEXTAUTH_URL);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      console.error('❌ NEXTAUTH_URL tiene un protocolo inválido:', url.protocol);
+    }
+  } catch (error) {
+    console.error('❌ NEXTAUTH_URL no es una URL válida:', process.env.NEXTAUTH_URL);
+  }
 }
 
 // Asegurar que siempre haya al menos un proveedor
@@ -147,17 +222,75 @@ export const authOptions = {
     strategy: 'jwt', // Usar JWT para CredentialsProvider (no requiere adapter)
   },
   callbacks: {
+    async signIn({ user, account, profile, email, credentials }) {
+      // Si el usuario se autentica por email (magic link) y no tiene contraseña,
+      // permitir el sign in pero redirigiremos a la página de establecer contraseña
+      if (account?.provider === 'email') {
+        const adapter = getAdapter();
+        const dbUser = await adapter.getUserByEmail(user.email);
+        if (dbUser && !dbUser.hasPassword) {
+          // El usuario existe pero no tiene contraseña, permitir sign in
+          return true;
+        }
+      }
+      return true;
+    },
+    async redirect({ url, baseUrl }) {
+      // Permitir que NextAuth maneje la redirección normalmente
+      // La verificación de contraseña se hará en el dashboard
+      // Si la URL es relativa, hacerla absoluta
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      // Si la URL es del mismo dominio, permitirla
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     async session({ session, token }) {
       // Agregar el ID del usuario a la sesión
       if (session.user) {
         session.user.id = token.sub || token.id || token.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Agregar el proveedor de autenticación a la sesión
+        session.user.provider = token.provider || null;
+        
+        // Verificar si el usuario tiene contraseña establecida
+        if (token.email) {
+          try {
+            const adapter = getAdapter();
+            const dbUser = await adapter.getUserByEmail(token.email);
+            session.user.hasPassword = dbUser?.hasPassword || false;
+          } catch (error) {
+            console.error('Error al verificar contraseña del usuario:', error);
+            session.user.hasPassword = false;
+          }
+        }
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id || token.sub || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         token.userId = user.id;
+        token.email = user.email;
+      }
+      // Guardar el proveedor de autenticación en el token
+      if (account) {
+        // Para OAuth providers (Google, GitHub, Email), account.provider está disponible
+        token.provider = account.provider;
+      } else if (user && !token.provider) {
+        // Para CredentialsProvider, no hay account, pero podemos inferir que es 'credentials'
+        // si el usuario tiene contraseña (se autenticó con email/contraseña)
+        // Esto se establece solo la primera vez que se crea el token
+        try {
+          const adapter = getAdapter();
+          const dbUser = await adapter.getUserByEmail(user.email);
+          if (dbUser?.hasPassword) {
+            // Si el usuario tiene contraseña y no hay account, es credentials
+            token.provider = 'credentials';
+          }
+        } catch (error) {
+          // Si hay error, no establecer proveedor
+          console.error('Error al verificar usuario en jwt:', error);
+        }
       }
       return token;
     },
@@ -165,6 +298,7 @@ export const authOptions = {
   pages: {
     signIn: '/login',
     error: '/login', // Redirigir errores a la página de login
+    verifyRequest: '/verify-email', // Página personalizada de verificación de email
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development', // Habilitar debug en desarrollo

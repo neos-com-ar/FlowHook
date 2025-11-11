@@ -37,4 +37,5 @@ next-env.d.ts
 
 # temp data
 /tmp/data.json
+/tmp/auth.json
 

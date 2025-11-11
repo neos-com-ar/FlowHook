@@ -102,11 +102,16 @@ openssl rand -base64 32
 
 #### Google OAuth
 
+Para una guía completa y detallada paso a paso, consulta:
+
+- **[GUIA_GOOGLE_OAUTH.md](./Documentacion/GUIA_GOOGLE_OAUTH.md)** - Guía completa paso a paso
+
+**Resumen rápido:**
 1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
 2. Crea un nuevo proyecto o selecciona uno existente
-3. Habilita Google+ API
-4. Crea credenciales OAuth 2.0
-5. Agrega `http://localhost:3000/api/auth/callback/google` a las URLs autorizadas
+3. Configura la pantalla de consentimiento OAuth
+4. Crea credenciales OAuth 2.0 (tipo "Web application")
+5. Agrega `http://localhost:3000/api/auth/callback/google` a las URLs autorizadas (para desarrollo)
 6. Copia el Client ID y Client Secret a `.env.local`
 
 ### 5. Ejecutar en desarrollo
