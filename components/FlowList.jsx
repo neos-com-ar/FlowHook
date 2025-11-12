@@ -422,6 +422,8 @@ export default function FlowList({ projectId, projectColor }) {
               destino: flow.destino,
               method: method,
               map: flow.map || {},
+              erpEndpoints: flow.erpEndpoints || null,
+              erpEndpoint: flow.erpEndpoint || null, // Retrocompatibilidad
               projectId: projectId || flow.projectId,
             }),
           });

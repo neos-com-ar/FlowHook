@@ -13,7 +13,9 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     destino: '',
     method: 'POST',
     map: {},
+    erpEndpoints: null,
   });
+  const [prevEndpoints, setPrevEndpoints] = useState([]); // Array de endpoints previos
   const [mappingEntries, setMappingEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
@@ -29,6 +31,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [literalObjectValue, setLiteralObjectValue] = useState('{}'); // Para objetos JSON
   const [literalArrayValue, setLiteralArrayValue] = useState('[]'); // Para arrays JSON
   const [useTemplate, setUseTemplate] = useState(false); // Si usa templates {{ruta}}
+  const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'mapping'
 
   useEffect(() => {
     if (flow) {
@@ -38,6 +41,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         destino: flow.destino || '',
         method: flow.method || 'POST',
         map: flow.map || {},
+        erpEndpoint: flow.erpEndpoint || null,
       });
       setMappingEntries(
         Object.entries(flow.map || {}).map(([dest, src]) => ({
@@ -45,6 +49,35 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
           src,
         }))
       );
+      
+      // Configurar endpoints previos si existen
+      // Soporte para array (múltiples) o objeto único (retrocompatibilidad)
+      let endpointsToLoad = [];
+      if (flow.erpEndpoints && Array.isArray(flow.erpEndpoints)) {
+        endpointsToLoad = flow.erpEndpoints;
+      } else if (flow.erpEndpoint) {
+        // Retrocompatibilidad: convertir objeto único a array
+        endpointsToLoad = [flow.erpEndpoint];
+      }
+      
+      if (endpointsToLoad.length > 0) {
+        setPrevEndpoints(
+          endpointsToLoad.map((endpoint) => ({
+            name: endpoint.name || '',
+            url: endpoint.url || '',
+            method: endpoint.method || 'GET',
+            required: endpoint.required || false,
+            bodyMapEntries: Object.entries(endpoint.bodyMap || {}).map(([key, value]) => ({
+              key,
+              value,
+            })),
+            headerEntries: Object.entries(endpoint.headers || {}).map(([key, value]) => ({
+              key,
+              value,
+            })),
+          }))
+        );
+      }
     }
   }, [flow]);
 
@@ -389,9 +422,38 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       }
     });
 
+    // Construir los endpoints previos
+    const prevEndpointsData = prevEndpoints
+      .filter((endpoint) => endpoint.url) // Solo incluir endpoints con URL
+      .map((endpoint) => {
+        const bodyMap = {};
+        endpoint.bodyMapEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            bodyMap[entry.key] = entry.value;
+          }
+        });
+        
+        const headers = {};
+        endpoint.headerEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            headers[entry.key] = entry.value;
+          }
+        });
+        
+        return {
+          name: endpoint.name || undefined,
+          url: endpoint.url,
+          method: endpoint.method,
+          required: endpoint.required,
+          bodyMap: Object.keys(bodyMap).length > 0 ? bodyMap : undefined,
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
+        };
+      });
+
     const flowData = {
       ...formData,
       map,
+      erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
       projectId: projectId || flow?.projectId,
     };
 
@@ -457,84 +519,477 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
-              ID del Flujo *
-            </label>
-            <input
-              type="text"
-              id="id"
-              name="id"
-              value={formData.id}
-              onChange={handleInputChange}
-              required
-              disabled={!!flow}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                flow ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
-              placeholder="ej: erp-client"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Solo letras, números, guiones y guiones bajos. No se puede cambiar después de crear.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre Descriptivo *
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="ej: Alta cliente ERP"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-3">
-              <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">
-                URL Destino *
-              </label>
-              <input
-                type="url"
-                id="destino"
-                name="destino"
-                value={formData.destino}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="https://api.crm.com/clientes"
-              />
-            </div>
-            <div>
-              <label htmlFor="method" className="block text-sm font-medium text-gray-700 mb-1">
-                Método HTTP *
-              </label>
-              <select
-                id="method"
-                name="method"
-                value={formData.method}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          {/* Pestañas */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                type="button"
+                onClick={() => setActiveTab('config')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'config'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
               >
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-              </select>
-            </div>
+                <span className="mr-2">⚙️</span>
+                Configuración General
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('prev')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'prev'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <span className="mr-2">🔗</span>
+                Llamadas Previas
+                {prevEndpoints.length > 0 && (
+                  <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
+                    {prevEndpoints.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('mapping')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'mapping'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <span className="mr-2">🔄</span>
+                Mapeo de Datos
+                {mappingEntries.length > 0 && (
+                  <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
+                    {mappingEntries.length}
+                  </span>
+                )}
+              </button>
+            </nav>
           </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Mapeo de Datos
-              </label>
+          {/* Contenido de las pestañas */}
+          <div className="min-h-[400px]">
+            {/* Pestaña: Configuración General */}
+            {activeTab === 'config' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div>
+                  <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
+                    ID del Flujo *
+                  </label>
+                  <input
+                    type="text"
+                    id="id"
+                    name="id"
+                    value={formData.id}
+                    onChange={handleInputChange}
+                    required
+                    disabled={!!flow}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      flow ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                      placeholder="ej: cliente-api"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Solo letras, números, guiones y guiones bajos. No se puede cambiar después de crear.
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre Descriptivo *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="ej: Alta cliente"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-3">
+                    <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">
+                      URL Destino *
+                    </label>
+                    <input
+                      type="url"
+                      id="destino"
+                      name="destino"
+                      value={formData.destino}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="https://api.crm.com/clientes"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="method" className="block text-sm font-medium text-gray-700 mb-1">
+                      Método HTTP *
+                    </label>
+                    <select
+                      id="method"
+                      name="method"
+                      value={formData.method}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <span className="text-blue-400 text-xl">💡</span>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">Información</h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <p>
+                          Configura los datos básicos del flujo. Puedes agregar llamadas previas a endpoints y 
+                          configurar el mapeo de datos en las otras pestañas.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pestaña: Llamadas Previas */}
+            {activeTab === 'prev' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Llamadas Previas a Endpoints
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Configura una o más llamadas previas a endpoints para obtener datos (ej: idCliente, idProducto) antes de enviar al destino.
+                      Los datos obtenidos estarán disponibles como <code className="bg-gray-100 px-1 rounded text-xs">erp.nombreEndpoint.campo</code> en el mapeo.
+                      Si no especificas un nombre, se usará <code className="bg-gray-100 px-1 rounded text-xs">endpoint1</code>, <code className="bg-gray-100 px-1 rounded text-xs">endpoint2</code>, etc.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPrevEndpoints([...prevEndpoints, {
+                      name: '',
+                      url: '',
+                      method: 'GET',
+                      required: false,
+                      bodyMapEntries: [],
+                      headerEntries: [],
+                    }])}
+                    className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    + Agregar Endpoint
+                  </button>
+                </div>
+
+                {prevEndpoints.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-md bg-gray-50">
+                    <span className="text-4xl mb-4 block">🔗</span>
+                    <p className="text-gray-500 text-sm mb-4">No hay llamadas previas configuradas</p>
+                    <button
+                      type="button"
+                      onClick={() => setPrevEndpoints([...prevEndpoints, {
+                        name: '',
+                        url: '',
+                        method: 'GET',
+                        required: false,
+                        bodyMapEntries: [],
+                        headerEntries: [],
+                      }])}
+                      className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                      + Agregar Primer Endpoint
+                    </button>
+                  </div>
+                  ) : (
+                  <div className="space-y-4">
+                {prevEndpoints.map((endpoint, endpointIndex) => (
+                  <div key={endpointIndex} className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-gray-700">
+                        Endpoint {endpointIndex + 1} {endpoint.name && `(${endpoint.name})`}
+                      </h3>
+                        <button
+                          type="button"
+                          onClick={() => setPrevEndpoints(prevEndpoints.filter((_, i) => i !== endpointIndex))}
+                          className="text-red-600 hover:text-red-700 text-sm"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Nombre del Endpoint (opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={endpoint.name}
+                            onChange={(e) => {
+                              const newEndpoints = [...prevEndpoints];
+                              newEndpoints[endpointIndex].name = e.target.value;
+                              setPrevEndpoints(newEndpoints);
+                            }}
+                            placeholder="ej: clientes, productos"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Si no especificas un nombre, se usará <code className="bg-gray-200 px-1 rounded">endpoint{endpointIndex + 1}</code>
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="md:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              URL del Endpoint *
+                            </label>
+                            <input
+                              type="url"
+                              value={endpoint.url}
+                              onChange={(e) => {
+                                const newEndpoints = [...prevEndpoints];
+                                newEndpoints[endpointIndex].url = e.target.value;
+                                setPrevEndpoints(newEndpoints);
+                              }}
+                              placeholder="https://api.ejemplo.com/clientes/buscar o https://api.ejemplo.com/clientes/{{email}}"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Usa <code className="bg-gray-200 px-1 rounded">{'{{campo}}'}</code> para inyectar valores del webhook en la URL
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Método HTTP *
+                            </label>
+                            <select
+                              value={endpoint.method}
+                              onChange={(e) => {
+                                const newEndpoints = [...prevEndpoints];
+                                newEndpoints[endpointIndex].method = e.target.value;
+                                setPrevEndpoints(newEndpoints);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                            >
+                              <option value="GET">GET</option>
+                              <option value="POST">POST</option>
+                              <option value="PUT">PUT</option>
+                              <option value="PATCH">PATCH</option>
+                              <option value="DELETE">DELETE</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={endpoint.required}
+                            onChange={(e) => {
+                              const newEndpoints = [...prevEndpoints];
+                              newEndpoints[endpointIndex].required = e.target.checked;
+                              setPrevEndpoints(newEndpoints);
+                            }}
+                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                          />
+                          <label className="text-sm text-gray-700 cursor-pointer">
+                            Requerido (el flujo fallará si este endpoint no responde)
+                          </label>
+                        </div>
+
+                        {/* Mapeo del Body para el Endpoint */}
+                        {['POST', 'PUT', 'PATCH'].includes(endpoint.method) && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Mapeo del Body para el Endpoint
+                            </label>
+                            <p className="text-xs text-gray-500 mb-2">
+                              Define qué campos del webhook se envían al endpoint. Si está vacío, se envía todo el body.
+                            </p>
+                            {endpoint.bodyMapEntries.length === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newEndpoints = [...prevEndpoints];
+                                  newEndpoints[endpointIndex].bodyMapEntries.push({ key: '', value: '' });
+                                  setPrevEndpoints(newEndpoints);
+                                }}
+                                className="text-sm text-indigo-600 hover:text-indigo-700"
+                              >
+                                + Agregar Campo
+                              </button>
+                            ) : (
+                              <div className="space-y-2">
+                                {endpoint.bodyMapEntries.map((entry, index) => (
+                                  <div key={index} className="flex items-center space-x-2">
+                                    <input
+                                      type="text"
+                                      value={entry.key}
+                                      onChange={(e) => {
+                                        const newEndpoints = [...prevEndpoints];
+                                        newEndpoints[endpointIndex].bodyMapEntries[index].key = e.target.value;
+                                        setPrevEndpoints(newEndpoints);
+                                      }}
+                                      placeholder="Campo en el endpoint"
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    />
+                                    <span className="text-gray-500">→</span>
+                                    <input
+                                      type="text"
+                                      value={entry.value}
+                                      onChange={(e) => {
+                                        const newEndpoints = [...prevEndpoints];
+                                        newEndpoints[endpointIndex].bodyMapEntries[index].value = e.target.value;
+                                        setPrevEndpoints(newEndpoints);
+                                      }}
+                                      placeholder="Campo del webhook"
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newEndpoints = [...prevEndpoints];
+                                        newEndpoints[endpointIndex].bodyMapEntries = newEndpoints[endpointIndex].bodyMapEntries.filter((_, i) => i !== index);
+                                        setPrevEndpoints(newEndpoints);
+                                      }}
+                                      className="text-red-600 hover:text-red-700 px-2"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newEndpoints = [...prevEndpoints];
+                                    newEndpoints[endpointIndex].bodyMapEntries.push({ key: '', value: '' });
+                                    setPrevEndpoints(newEndpoints);
+                                  }}
+                                  className="text-sm text-indigo-600 hover:text-indigo-700"
+                                >
+                                  + Agregar Campo
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Headers del Endpoint */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Headers del Endpoint
+                          </label>
+                          {endpoint.headerEntries.length === 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newEndpoints = [...prevEndpoints];
+                                newEndpoints[endpointIndex].headerEntries.push({ key: '', value: '' });
+                                setPrevEndpoints(newEndpoints);
+                              }}
+                              className="text-sm text-indigo-600 hover:text-indigo-700"
+                            >
+                              + Agregar Header
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              {endpoint.headerEntries.map((entry, index) => (
+                                <div key={index} className="flex items-center space-x-2">
+                                  <input
+                                    type="text"
+                                    value={entry.key}
+                                    onChange={(e) => {
+                                      const newEndpoints = [...prevEndpoints];
+                                      newEndpoints[endpointIndex].headerEntries[index].key = e.target.value;
+                                      setPrevEndpoints(newEndpoints);
+                                    }}
+                                    placeholder="Nombre del header (ej: Authorization)"
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                  />
+                                  <span className="text-gray-500">:</span>
+                                  <input
+                                    type="text"
+                                    value={entry.value}
+                                    onChange={(e) => {
+                                      const newEndpoints = [...prevEndpoints];
+                                      newEndpoints[endpointIndex].headerEntries[index].value = e.target.value;
+                                      setPrevEndpoints(newEndpoints);
+                                    }}
+                                    placeholder="Valor (ej: Bearer token123)"
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newEndpoints = [...prevEndpoints];
+                                      newEndpoints[endpointIndex].headerEntries = newEndpoints[endpointIndex].headerEntries.filter((_, i) => i !== index);
+                                      setPrevEndpoints(newEndpoints);
+                                    }}
+                                    className="text-red-600 hover:text-red-700 px-2"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newEndpoints = [...prevEndpoints];
+                                  newEndpoints[endpointIndex].headerEntries.push({ key: '', value: '' });
+                                  setPrevEndpoints(newEndpoints);
+                                }}
+                                className="text-sm text-indigo-600 hover:text-indigo-700"
+                              >
+                                + Agregar Header
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                    </div>
+                  </div>
+                  ))}
+                </div>
+                )}
+              </div>
+            )}
+
+            {/* Pestaña: Mapeo de Datos */}
+            {activeTab === 'mapping' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div className="flex justify-between items-center mb-2">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Mapeo de Datos
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Define cómo se mapean los campos del webhook entrante a los campos del destino.
+                    </p>
+                  </div>
               <div className="flex items-center space-x-3">
                 <button
                   type="button"
@@ -554,12 +1009,15 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Define cómo se mapean los campos del webhook entrante a los campos del destino. 
-              Para valores fijos, usa <code className="bg-gray-100 px-1 rounded">literal:valor</code>.
-              Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-100 px-1 rounded text-xs">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code>.
-              Para convertir a número, usa <code className="bg-gray-100 px-1 rounded">::number</code> o <code className="bg-gray-100 px-1 rounded">::int</code>.
-            </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4 mb-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Guía de Mapeo:</h4>
+                  <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                    <li>Para valores fijos, usa <code className="bg-gray-200 px-1 rounded">literal:valor</code></li>
+                    <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
+                    <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
+                    <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">erp.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">erp.clientes.idCliente</code>)</li>
+                  </ul>
+                </div>
 
             {mappingEntries.length === 0 ? (
               <div className="text-center py-4 border-2 border-dashed border-gray-300 rounded-md">
@@ -630,6 +1088,26 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 ))}
               </div>
             )}
+              </div>
+            )}
+          </div>
+
+          {/* Botones de acción - siempre visibles */}
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
           </div>
 
           {/* Modal de mapeo de valores */}
@@ -1072,26 +1550,10 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
               </div>
             </div>
           )}
-
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Guardando...' : 'Guardar Cambios'}
-            </button>
-          </div>
         </form>
       </div>
     </div>
   );
 }
+
 

@@ -133,12 +133,50 @@ export async function POST(request) {
       );
     }
 
+    // Validar endpoints del ERP si están configurados
+    // Soporte para array (múltiples) o objeto único (retrocompatibilidad)
+    let erpEndpoints = [];
+    if (body.erpEndpoints && Array.isArray(body.erpEndpoints)) {
+      erpEndpoints = body.erpEndpoints;
+    } else if (body.erpEndpoint) {
+      // Retrocompatibilidad: convertir objeto único a array
+      erpEndpoints = [body.erpEndpoint];
+    }
+    
+    // Validar cada endpoint del ERP
+    for (const erpEndpoint of erpEndpoints) {
+      if (erpEndpoint.url) {
+        try {
+          new URL(erpEndpoint.url);
+        } catch {
+          return NextResponse.json(
+            { error: `Invalid ERP endpoint URL: ${erpEndpoint.name || 'unnamed'}` },
+            { status: 400 }
+          );
+        }
+        
+        // Validar método HTTP del ERP
+        if (erpEndpoint.method) {
+          const erpMethod = erpEndpoint.method.toUpperCase();
+          const allowedErpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+          if (!allowedErpMethods.includes(erpMethod)) {
+            return NextResponse.json(
+              { error: `Invalid ERP HTTP method for ${erpEndpoint.name || 'unnamed'}. Allowed methods: GET, POST, PUT, PATCH, DELETE` },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
       destino: body.destino,
       method: method,
       map: body.map || {},
+      erpEndpoints: erpEndpoints.length > 0 ? erpEndpoints : null, // Array de endpoints del ERP
+      erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
       ownerId: userId,
     };
 
@@ -242,6 +280,8 @@ export async function PUT(request) {
       destino: originalFlow.destino,
       method: originalFlow.method || 'POST',
       map: originalFlow.map ? { ...originalFlow.map } : {},
+      erpEndpoints: originalFlow.erpEndpoints ? originalFlow.erpEndpoints.map(e => ({ ...e })) : null,
+      erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad
       ownerId: userId,
     };
 

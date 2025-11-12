@@ -1,0 +1,80 @@
+{
+  "flows": [
+    {
+      "id": "cliente-con-id-erp",
+      "name": "Alta Cliente con ID del ERP",
+      "destino": "https://api.destino.com/clientes",
+      "method": "POST",
+      "erpEndpoint": {
+        "url": "https://erp.ejemplo.com/api/clientes/buscar",
+        "method": "POST",
+        "required": true,
+        "bodyMap": {
+          "email": "email",
+          "dni": "dni"
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer tu-token-aqui"
+        }
+      },
+      "map": {
+        "idCliente": "erp.idCliente",
+        "nombre": "nombre",
+        "apellido": "apellido",
+        "email": "email",
+        "telefono": "telefono",
+        "dni": "dni",
+        "direccion": "direccion"
+      }
+    },
+    {
+      "id": "pedido-con-cliente-erp",
+      "name": "Crear Pedido con Cliente del ERP",
+      "destino": "https://api.destino.com/pedidos",
+      "method": "POST",
+      "erpEndpoint": {
+        "url": "https://erp.ejemplo.com/api/clientes/{{email}}",
+        "method": "GET",
+        "required": true,
+        "headers": {
+          "Authorization": "Bearer tu-token-aqui"
+        }
+      },
+      "map": {
+        "idCliente": "erp.idCliente",
+        "numeroPedido": "numeroPedido",
+        "fecha": "fecha",
+        "total": "total::number",
+        "items": "items"
+      }
+    },
+    {
+      "id": "producto-con-categoria-erp",
+      "name": "Sincronizar Producto con Categoría del ERP",
+      "destino": "https://api.destino.com/productos",
+      "method": "PUT",
+      "erpEndpoint": {
+        "url": "https://erp.ejemplo.com/api/categorias/buscar",
+        "method": "POST",
+        "required": false,
+        "bodyMap": {
+          "codigoCategoria": "categoria.codigo"
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "X-API-Key": "tu-api-key"
+        }
+      },
+      "map": {
+        "idProducto": "idProducto",
+        "nombre": "nombre",
+        "precio": "precio::number",
+        "idCategoria": "erp.idCategoria",
+        "nombreCategoria": "erp.nombre",
+        "stock": "stock::number"
+      }
+    }
+  ]
+}
+
