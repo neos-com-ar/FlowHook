@@ -68,36 +68,60 @@ export async function POST(request, { params }) {
           
           // Reemplazar placeholders en la URL con datos del webhook
           // Ejemplo: https://api.com/clientes/{{email}} -> https://api.com/clientes/juan@example.com
-          prevUrl = processTemplate(prevUrl, body);
+          // Para URLs, usar processUrlTemplate que no agrega comillas a los valores
+          prevUrl = processUrlTemplate(prevUrl, body);
           
           // Construir el body para la llamada al endpoint previo si está configurado
           let prevRequestBody = {};
+          let prevQueryParams = {};
+          
+          const prevMethod = (prevEndpoint.method || 'GET').toUpperCase();
+          
           if (prevEndpoint.bodyMap && typeof prevEndpoint.bodyMap === 'object') {
+            // Si hay bodyMap, usar esos mapeos
             for (const [prevKey, sourceKey] of Object.entries(prevEndpoint.bodyMap)) {
               if (sourceKey && sourceKey.trim() !== '') {
                 if (sourceKey.startsWith('literal:')) {
                   const literalValue = processTemplate(sourceKey.substring(8).trim(), body);
-                  prevRequestBody[prevKey] = literalValue;
+                  // Para GET/DELETE, los literales van como query params si no están en la URL
+                  if (['GET', 'DELETE'].includes(prevMethod)) {
+                    prevQueryParams[prevKey] = literalValue;
+                  } else {
+                    prevRequestBody[prevKey] = literalValue;
+                  }
                 } else {
                   const value = getNestedValue(body, sourceKey);
                   if (value !== undefined) {
-                    prevRequestBody[prevKey] = value;
+                    // Para GET/DELETE, los valores van como query params si no están en la URL
+                    if (['GET', 'DELETE'].includes(prevMethod)) {
+                      prevQueryParams[prevKey] = value;
+                    } else {
+                      prevRequestBody[prevKey] = value;
+                    }
                   }
                 }
               }
             }
-          } else {
-            // Si no hay mapeo específico, enviar todo el body
+          } else if (!['GET', 'DELETE'].includes(prevMethod)) {
+            // Si no hay mapeo específico y no es GET/DELETE, enviar todo el body
             prevRequestBody = body;
           }
+          // Para GET/DELETE sin bodyMap, no enviar nada (los parámetros deben estar en la URL)
+          
+          // Log para debugging
+          console.log(`Llamando endpoint previo [${prevEndpoint.name || index}]:`, {
+            method: prevMethod,
+            url: prevUrl,
+            hasBody: Object.keys(prevRequestBody).length > 0,
+            hasQueryParams: Object.keys(prevQueryParams).length > 0,
+          });
           
           // Realizar la llamada al endpoint previo
-          const prevMethod = (prevEndpoint.method || 'GET').toUpperCase();
           const prevResponse = await axios({
             method: prevMethod.toLowerCase(),
             url: prevUrl,
             data: ['POST', 'PUT', 'PATCH'].includes(prevMethod) ? prevRequestBody : undefined,
-            params: ['GET', 'DELETE'].includes(prevMethod) ? prevRequestBody : undefined,
+            params: ['GET', 'DELETE'].includes(prevMethod) && Object.keys(prevQueryParams).length > 0 ? prevQueryParams : undefined,
             headers: prevEndpoint.headers || {
               'Content-Type': 'application/json',
             },
@@ -111,13 +135,25 @@ export async function POST(request, { params }) {
             data: prevResponse.data || {},
           };
         } catch (prevError) {
-          console.error(`Error llamando al endpoint previo [${prevEndpoint.name || index}]:`, prevError);
+          const endpointName = prevEndpoint.name || `endpoint${index + 1}`;
+          const errorUrl = prevUrl || prevEndpoint.url || 'URL no disponible';
+          const errorStatus = prevError.response?.status;
+          const errorData = prevError.response?.data;
+          
+          console.error(`Error llamando al endpoint previo [${endpointName}]:`, {
+            url: errorUrl,
+            method: prevMethod,
+            status: errorStatus,
+            error: prevError.message,
+            responseData: errorData,
+          });
           
           // Si es requerido, lanzar el error para que se propague
           if (prevEndpoint.required) {
             throw {
-              endpoint: prevEndpoint.name || `endpoint${index + 1}`,
+              endpoint: endpointName,
               error: prevError,
+              url: errorUrl,
             };
           }
           
@@ -141,12 +177,26 @@ export async function POST(request, { params }) {
       } catch (prevError) {
         // Si algún endpoint requerido falló, devolver error
         if (prevError.endpoint) {
+          const errorStatus = prevError.error.response?.status || 500;
+          const errorData = prevError.error.response?.data;
+          const errorMessage = typeof errorData === 'string' 
+            ? errorData 
+            : (errorData ? JSON.stringify(errorData) : prevError.error.message);
+          
+          console.error(`Error en endpoint previo requerido [${prevError.endpoint}]:`, {
+            url: prevError.url,
+            status: errorStatus,
+            message: errorMessage,
+          });
+          
           return NextResponse.json(
             {
               error: `Failed to fetch data from previous endpoint: ${prevError.endpoint}`,
-              message: prevError.error.response?.data || prevError.error.message,
+              message: errorMessage,
+              url: prevError.url,
+              status: errorStatus,
             },
-            { status: prevError.error.response?.status || 500 }
+            { status: errorStatus }
           );
         }
         throw prevError;
@@ -389,6 +439,23 @@ function getNestedValue(obj, path) {
   }
   
   return value;
+}
+
+// Función para procesar templates en URLs (reemplaza {{ruta}} con valores del webhook)
+// Esta versión NO agrega comillas a los valores, ya que son para URLs
+function processUrlTemplate(template, webhookData) {
+  return template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+    const value = getNestedValue(webhookData, path.trim());
+    // Si el valor es undefined o null, usar cadena vacía
+    if (value === undefined || value === null) {
+      return '';
+    }
+    // Para URLs, siempre convertir a string
+    const stringValue = String(value);
+    // Codificar el valor para que sea seguro en una URL (solo codifica caracteres especiales)
+    // Para valores simples como números, encodeURIComponent no los modifica
+    return encodeURIComponent(stringValue);
+  });
 }
 
 // Función para procesar templates en strings JSON (reemplaza {{ruta}} con valores del webhook)

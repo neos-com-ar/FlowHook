@@ -13,6 +13,10 @@ export default function WebhooksPage() {
   const [selectedFlowId, setSelectedFlowId] = useState(null);
   const [flows, setFlows] = useState([]);
   const [expandedWebhook, setExpandedWebhook] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -36,7 +40,7 @@ export default function WebhooksPage() {
     if (session) {
       fetchWebhooks();
     }
-  }, [session, selectedFlowId]);
+  }, [session, selectedFlowId, currentPage]);
 
   const fetchFlows = async () => {
     try {
@@ -50,16 +54,22 @@ export default function WebhooksPage() {
     }
   };
 
-  const fetchWebhooks = async () => {
+  const fetchWebhooks = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const offset = (currentPage - 1) * pageSize;
       const url = selectedFlowId 
-        ? `/api/webhooks?flowId=${selectedFlowId}&limit=100`
-        : '/api/webhooks?limit=100';
+        ? `/api/webhooks?flowId=${selectedFlowId}&limit=${pageSize}&offset=${offset}`
+        : `/api/webhooks?limit=${pageSize}&offset=${offset}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setWebhooks(data.webhooks || []);
+        setTotal(data.total || 0);
       } else {
         console.error('Error fetching webhooks');
       }
@@ -67,8 +77,20 @@ export default function WebhooksPage() {
       console.error('Error fetching webhooks:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const handleRefresh = () => {
+    fetchWebhooks(true);
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    setExpandedWebhook(null); // Cerrar webhooks expandidos al cambiar de página
+  };
+
+  const totalPages = Math.ceil(total / pageSize);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -107,12 +129,35 @@ export default function WebhooksPage() {
           <h1 className="text-3xl font-bold text-gray-900">Historial de Webhooks</h1>
           <p className="text-gray-600 mt-2">Visualiza todos los webhooks recibidos y su estado</p>
         </div>
-        <Link
-          href="/dashboard"
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-        >
-          ← Volver al Dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Actualizar logs"
+          >
+            <svg
+              className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {refreshing ? 'Actualizando...' : 'Actualizar'}
+          </button>
+          <Link
+            href="/dashboard"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          >
+            ← Volver al Dashboard
+          </Link>
+        </div>
       </div>
 
       {/* Filtro por flujo */}
@@ -122,7 +167,10 @@ export default function WebhooksPage() {
         </label>
         <select
           value={selectedFlowId || ''}
-          onChange={(e) => setSelectedFlowId(e.target.value || null)}
+          onChange={(e) => {
+            setSelectedFlowId(e.target.value || null);
+            setCurrentPage(1); // Resetear a la primera página al cambiar el filtro
+          }}
           className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="">Todos los flujos</option>
@@ -146,8 +194,9 @@ export default function WebhooksPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {webhooks.map((webhook) => (
+        <>
+          <div className="space-y-4 mb-6">
+            {webhooks.map((webhook) => (
             <div
               key={webhook.id}
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
@@ -270,7 +319,61 @@ export default function WebhooksPage() {
               )}
             </div>
           ))}
-        </div>
+          </div>
+
+          {/* Controles de paginación */}
+          {totalPages > 1 && (
+            <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, total)} de {total} webhooks
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                  className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={loading}
+                        className={`px-3 py-2 rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || loading}
+                  className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

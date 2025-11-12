@@ -32,6 +32,8 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [literalArrayValue, setLiteralArrayValue] = useState('[]'); // Para arrays JSON
   const [useTemplate, setUseTemplate] = useState(false); // Si usa templates {{ruta}}
   const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'mapping'
+  const [testingEndpoint, setTestingEndpoint] = useState(null); // {index, loading, result, error}
+  const [testWebhookData, setTestWebhookData] = useState('{}'); // Datos de ejemplo para probar
 
   useEffect(() => {
     if (flow) {
@@ -353,6 +355,122 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     setShowAIModal(true);
     // Cargar ejemplos automáticamente cuando se abre el modal
     loadExamplesAutomatically();
+  };
+
+  const handleTestEndpoint = async (endpointIndex) => {
+    const endpoint = prevEndpoints[endpointIndex];
+    
+    if (!endpoint.url) {
+      alert('Por favor, ingresa una URL para el endpoint');
+      return;
+    }
+
+    setTestingEndpoint({ index: endpointIndex, loading: true, result: null, error: null });
+
+    try {
+      // Parsear los datos de ejemplo del webhook
+      let webhookData = {};
+      try {
+        webhookData = JSON.parse(testWebhookData || '{}');
+      } catch (e) {
+        alert('Los datos de ejemplo del webhook no son JSON válido');
+        setTestingEndpoint(null);
+        return;
+      }
+
+      // Construir la URL con templates
+      let testUrl = endpoint.url;
+      testUrl = testUrl.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+        const keys = path.trim().split('.');
+        let value = webhookData;
+        for (const key of keys) {
+          if (value === null || value === undefined) {
+            return '';
+          }
+          value = value[key];
+        }
+        if (value === undefined || value === null) {
+          return '';
+        }
+        return encodeURIComponent(String(value));
+      });
+
+      // Construir el body o query params según el método
+      const method = (endpoint.method || 'GET').toUpperCase();
+      let requestBody = {};
+      let queryParams = {};
+
+      if (endpoint.bodyMapEntries && endpoint.bodyMapEntries.length > 0) {
+        // Si hay bodyMap, usar esos mapeos
+        endpoint.bodyMapEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            const keys = entry.value.split('.');
+            let value = webhookData;
+            for (const key of keys) {
+              if (value === null || value === undefined) {
+                return;
+              }
+              value = value[key];
+            }
+            if (value !== undefined) {
+              if (['GET', 'DELETE'].includes(method)) {
+                queryParams[entry.key] = value;
+              } else {
+                requestBody[entry.key] = value;
+              }
+            }
+          }
+        });
+      } else if (!['GET', 'DELETE'].includes(method)) {
+        // Si no hay bodyMap y es POST/PUT/PATCH, enviar todo el webhookData
+        requestBody = webhookData;
+      }
+
+      // Construir headers
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (endpoint.headerEntries && endpoint.headerEntries.length > 0) {
+        endpoint.headerEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            headers[entry.key] = entry.value;
+          }
+        });
+      }
+
+      // Realizar la petición
+      const axios = (await import('axios')).default;
+      const response = await axios({
+        method: method.toLowerCase(),
+        url: testUrl,
+        data: ['POST', 'PUT', 'PATCH'].includes(method) && Object.keys(requestBody).length > 0 ? requestBody : undefined,
+        params: ['GET', 'DELETE'].includes(method) && Object.keys(queryParams).length > 0 ? queryParams : undefined,
+        headers,
+        timeout: 30000,
+      });
+
+      setTestingEndpoint({
+        index: endpointIndex,
+        loading: false,
+        result: {
+          status: response.status,
+          data: response.data,
+          headers: response.headers,
+        },
+        error: null,
+      });
+    } catch (error) {
+      setTestingEndpoint({
+        index: endpointIndex,
+        loading: false,
+        result: null,
+        error: {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+        },
+      });
+    }
   };
 
   const handleAIMapping = async () => {
@@ -734,6 +852,15 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <h3 className="text-sm font-medium text-gray-700">
                         Endpoint {endpointIndex + 1} {endpoint.name && `(${endpoint.name})`}
                       </h3>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTestEndpoint(endpointIndex)}
+                          disabled={testingEndpoint?.index === endpointIndex && testingEndpoint?.loading}
+                          className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {testingEndpoint?.index === endpointIndex && testingEndpoint?.loading ? 'Probando...' : '🧪 Probar'}
+                        </button>
                         <button
                           type="button"
                           onClick={() => setPrevEndpoints(prevEndpoints.filter((_, i) => i !== endpointIndex))}
@@ -742,6 +869,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                           Eliminar
                         </button>
                       </div>
+                    </div>
 
                       <div className="space-y-4">
                         <div>
@@ -970,10 +1098,85 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                             </div>
                           )}
                         </div>
+
+                        {/* Resultado de la prueba */}
+                        {testingEndpoint?.index === endpointIndex && (
+                          <div className="mt-4 border-t border-gray-300 pt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-sm font-medium text-gray-700">Resultado de la Prueba</h4>
+                              <button
+                                type="button"
+                                onClick={() => setTestingEndpoint(null)}
+                                className="text-gray-500 hover:text-gray-700 text-sm"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            
+                            {testingEndpoint.loading ? (
+                              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                                🔄 Probando endpoint...
+                              </div>
+                            ) : testingEndpoint.error ? (
+                              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                                <div className="text-sm font-medium text-red-800 mb-2">❌ Error</div>
+                                <div className="text-xs text-red-700 space-y-1">
+                                  <div><strong>Mensaje:</strong> {testingEndpoint.error.message}</div>
+                                  {testingEndpoint.error.status && (
+                                    <div><strong>Status:</strong> {testingEndpoint.error.status}</div>
+                                  )}
+                                  {testingEndpoint.error.data && (
+                                    <div className="mt-2">
+                                      <strong>Respuesta:</strong>
+                                      <pre className="mt-1 bg-red-100 p-2 rounded text-xs overflow-auto max-h-40">
+                                        {typeof testingEndpoint.error.data === 'string' 
+                                          ? testingEndpoint.error.data 
+                                          : JSON.stringify(testingEndpoint.error.data, null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : testingEndpoint.result ? (
+                              <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                                <div className="text-sm font-medium text-green-800 mb-2">✅ Éxito</div>
+                                <div className="text-xs text-green-700 space-y-2">
+                                  <div><strong>Status:</strong> {testingEndpoint.result.status}</div>
+                                  <div>
+                                    <strong>Respuesta:</strong>
+                                    <pre className="mt-1 bg-green-100 p-2 rounded text-xs overflow-auto max-h-60">
+                                      {JSON.stringify(testingEndpoint.result.data, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                     </div>
                   </div>
                   ))}
                 </div>
+                )}
+
+                {/* Datos de ejemplo para probar endpoints */}
+                {prevEndpoints.length > 0 && (
+                  <div className="mt-6 bg-gray-50 border border-gray-200 rounded-md p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Datos de Ejemplo del Webhook (para probar endpoints)
+                    </label>
+                    <textarea
+                      value={testWebhookData}
+                      onChange={(e) => setTestWebhookData(e.target.value)}
+                      placeholder='{"cuit": "55468", "email": "test@example.com", "nombre": "Juan"}'
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
+                      rows={4}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Ingresa un JSON de ejemplo que simule los datos que recibirá el webhook. 
+                      Estos datos se usarán para reemplazar los placeholders <code className="bg-gray-200 px-1 rounded">{'{{campo}}'}</code> en las URLs y bodyMap.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

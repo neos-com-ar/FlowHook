@@ -15,3 +15,4 @@ if (Test-Path $nvmrcPath) {
     Write-Host "No se encontró archivo .nvmrc" -ForegroundColor Yellow
 }
 
+

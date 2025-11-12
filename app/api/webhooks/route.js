@@ -20,11 +20,15 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const flowId = searchParams.get('flowId');
-    const limit = parseInt(searchParams.get('limit') || '100', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const webhooks = await getWebhooks(session.user.id, flowId || null, limit);
+    const result = await getWebhooks(session.user.id, flowId || null, limit, offset);
 
-    return NextResponse.json({ webhooks });
+    return NextResponse.json({ 
+      webhooks: result.webhooks,
+      total: result.total 
+    });
   } catch (error) {
     console.error('Error getting webhooks:', error);
     return NextResponse.json(
