@@ -687,7 +687,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     </h3>
                     <p className="text-sm text-gray-500">
                       Configura una o más llamadas previas a endpoints para obtener datos (ej: idCliente, idProducto) antes de enviar al destino.
-                      Los datos obtenidos estarán disponibles como <code className="bg-gray-100 px-1 rounded text-xs">erp.nombreEndpoint.campo</code> en el mapeo.
+                      Los datos obtenidos estarán disponibles como <code className="bg-gray-100 px-1 rounded text-xs">prev.nombreEndpoint.campo</code> en el mapeo.
                       Si no especificas un nombre, se usará <code className="bg-gray-100 px-1 rounded text-xs">endpoint1</code>, <code className="bg-gray-100 px-1 rounded text-xs">endpoint2</code>, etc.
                     </p>
                   </div>
@@ -1015,7 +1015,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     <li>Para valores fijos, usa <code className="bg-gray-200 px-1 rounded">literal:valor</code></li>
                     <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
                     <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
-                    <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">erp.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">erp.clientes.idCliente</code>)</li>
+                    <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
                   </ul>
                 </div>
 
