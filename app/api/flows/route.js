@@ -45,6 +45,11 @@ export async function GET(request) {
         );
       }
       flows = await getProjectFlows(projectId);
+      // Agregar projectId a cada flujo para consistencia
+      flows = flows.map(flow => ({
+        ...flow,
+        projectId: projectId,
+      }));
     } else {
       // Obtener todos los flujos accesibles (de todos los proyectos)
       flows = await getAllFlowsForUser(userId);

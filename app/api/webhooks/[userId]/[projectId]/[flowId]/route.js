@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getFlow, saveWebhook } from '@/lib/db';
+import { getProjectFlows, getFlow, saveWebhook } from '@/lib/db';
 import axios from 'axios';
 
 export async function POST(request, { params }) {
   try {
     // En Next.js 14, params puede ser una Promise
     const resolvedParams = await params;
-    const { userId, flowId } = resolvedParams;
+    const { userId, projectId, flowId } = resolvedParams;
 
     // Validar SECRET_KEY si está configurado
     if (process.env.SECRET_KEY) {
@@ -37,13 +37,21 @@ export async function POST(request, { params }) {
     }
 
     // Obtener el flujo de configuración
-    // Esta ruta mantiene retrocompatibilidad con flujos antiguos sin proyecto
-    // La nueva ruta recomendada es /api/webhooks/{userId}/{projectId}/{flowId}
-    const flow = await getFlow(userId, flowId);
+    // Primero buscar en el proyecto específico
+    let flow = null;
+    if (projectId) {
+      const projectFlows = await getProjectFlows(projectId);
+      flow = projectFlows.find(f => f.id === flowId);
+    }
+    
+    // Si no se encuentra en el proyecto, buscar en flujos antiguos sin proyecto (retrocompatibilidad)
+    if (!flow) {
+      flow = await getFlow(userId, flowId);
+    }
     
     if (!flow) {
       return NextResponse.json(
-        { error: 'Flow not found. Note: New webhook URLs should include projectId: /api/webhooks/{userId}/{projectId}/{flowId}' },
+        { error: 'Flow not found' },
         { status: 404 }
       );
     }

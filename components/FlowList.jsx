@@ -244,8 +244,9 @@ export default function FlowList({ projectId, projectColor }) {
 
   const getWebhookUrl = (flowId) => {
     if (!session?.user?.id) return '';
+    if (!projectId) return ''; // Si no hay projectId, no se puede generar la URL
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${baseUrl}/api/webhooks/${session.user.id}/${flowId}`;
+    return `${baseUrl}/api/webhooks/${session.user.id}/${projectId}/${flowId}`;
   };
 
   const copyToClipboard = (text) => {
