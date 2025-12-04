@@ -10,7 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "use-node": "powershell -ExecutionPolicy Bypass -File scripts/use-node-version.ps1"
+    "use-node": "powershell -ExecutionPolicy Bypass -File scripts/use-node-version.ps1",
+    "increment-build": "node scripts/increment-build.js",
+    "setup-hooks": "node scripts/setup-git-hooks-windows.js"
   },
   "dependencies": {
     "@vercel/kv": "^0.2.0",

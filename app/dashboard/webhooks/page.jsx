@@ -124,6 +124,13 @@ export default function WebhooksPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Link
+        href="/dashboard"
+        className="mb-4 inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+      >
+        <span>←</span>
+        <span>Volver al Dashboard</span>
+      </Link>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Historial de Webhooks</h1>
@@ -151,12 +158,6 @@ export default function WebhooksPage() {
             </svg>
             {refreshing ? 'Actualizando...' : 'Actualizar'}
           </button>
-          <Link
-            href="/dashboard"
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-          >
-            ← Volver al Dashboard
-          </Link>
         </div>
       </div>
 

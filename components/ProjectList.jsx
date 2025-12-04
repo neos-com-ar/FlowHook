@@ -151,19 +151,18 @@ export default function ProjectList() {
 
   if (showOrphanFlows) {
     return (
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowOrphanFlows(false)}
-              className="text-gray-600 hover:text-gray-800"
-            >
-              ← Volver a proyectos
-            </button>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl">📦</span>
-              <h1 className="text-2xl font-bold text-gray-900">Flujos sin Proyecto</h1>
-            </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <button
+          onClick={() => setShowOrphanFlows(false)}
+          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+        >
+          <span>←</span>
+          <span>Volver a proyectos</span>
+        </button>
+        <div className="mb-6">
+          <div className="flex items-center space-x-2">
+            <span className="text-2xl">📦</span>
+            <h1 className="text-2xl font-bold text-gray-900">Flujos sin Proyecto</h1>
           </div>
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
@@ -180,33 +179,34 @@ export default function ProjectList() {
   if (selectedProject) {
     const projectColor = selectedProject.color || '#3B82F6';
     return (
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setSelectedProject(null)}
-              className="text-gray-600 hover:text-gray-800"
-            >
-              ← Volver a proyectos
-            </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <button
+          onClick={() => setSelectedProject(null)}
+          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+        >
+          <span>←</span>
+          <span>Volver a proyectos</span>
+        </button>
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="text-2xl">{selectedProject.icon}</span>
               <h1 className="text-2xl font-bold text-gray-900">{selectedProject.name}</h1>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleOpenPermissions(selectedProject.id)}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              👥 Permisos
-            </button>
-            <button
-              onClick={() => handleEditProject(selectedProject)}
-              className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
-            >
-              ✏️ Editar
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => handleOpenPermissions(selectedProject.id)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                👥 Permisos
+              </button>
+              <button
+                onClick={() => handleEditProject(selectedProject)}
+                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
+              >
+                ✏️ Editar
+              </button>
+            </div>
           </div>
         </div>
         {selectedProject.description && (

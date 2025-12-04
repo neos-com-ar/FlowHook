@@ -11,6 +11,7 @@ export default function NavBar() {
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [buildNumber, setBuildNumber] = useState(null);
   const menuRef = useRef(null);
 
   const handleSignOut = async () => {
@@ -34,6 +35,31 @@ export default function NavBar() {
     };
   }, [showUserMenu]);
 
+  // Obtener el build number
+  useEffect(() => {
+    const fetchBuildNumber = async () => {
+      try {
+        const response = await fetch('/api/build-info');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Build info recibido:', data);
+          // Aceptar cualquier número, incluyendo 0
+          if (data.buildNumber !== undefined && data.buildNumber !== null) {
+            setBuildNumber(data.buildNumber);
+          }
+        } else {
+          console.error('Error en respuesta de build-info:', response.status);
+        }
+      } catch (error) {
+        console.error('Error al obtener build number:', error);
+      }
+    };
+
+    if (pathname !== '/login') {
+      fetchBuildNumber();
+    }
+  }, [pathname]);
+
   if (pathname === '/login') {
     return null;
   }
@@ -52,12 +78,17 @@ export default function NavBar() {
       <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-3">
               <Link href="/dashboard" className="flex items-center">
                 <span className="text-xl font-bold text-indigo-600">
                   FlowHook
                 </span>
               </Link>
+              {buildNumber !== null && buildNumber !== undefined && (
+                <span className="text-[10px] text-gray-500 font-normal italic">
+                  Version 1.0 Build {buildNumber}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">

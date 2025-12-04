@@ -29,9 +29,10 @@ function VerifyEmailContent() {
           <div className="space-y-3">
             <Link
               href="/login"
-              className="block w-full text-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="block w-full text-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
             >
-              Volver al inicio de sesión
+              <span>←</span>
+              <span>Volver al inicio de sesión</span>
             </Link>
           </div>
         </div>

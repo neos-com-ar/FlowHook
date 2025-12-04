@@ -628,15 +628,16 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   if (!projectId && !flow?.projectId) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <button
+          onClick={onCancel}
+          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+        >
+          <span>←</span>
+          <span>Volver</span>
+        </button>
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">Error: No se especificó el proyecto.</p>
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-            >
-              Volver
-            </button>
           </div>
         </div>
       </div>
@@ -645,17 +646,18 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <button
+        onClick={onCancel}
+        className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+      >
+        <span>←</span>
+        <span>Volver</span>
+      </button>
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             {flow ? 'Editar Flujo' : 'Nuevo Flujo'}
           </h2>
-          <button
-            onClick={onCancel}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
