@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
+import { ChevronDown } from 'lucide-react';
 import ChangePasswordModal from './ChangePasswordModal';
 
 export default function NavBar() {
@@ -108,14 +109,7 @@ export default function NavBar() {
                       className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                     >
                       <span>{userEmail}</span>
-                      <svg
-                        className={`w-4 h-4 transition-transform ${showUserMenu ? 'transform rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showUserMenu ? 'transform rotate-180' : ''}`} />
                     </button>
 
                     {showUserMenu && (

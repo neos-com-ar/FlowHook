@@ -3,7 +3,61 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import {
+  Copy,
+  Pencil,
+  BarChart3,
+  Package,
+  X,
+  Folder,
+  BarChart3 as BarChart3Icon,
+  Link as LinkIcon,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+} from 'lucide-react';
 import FlowEditor from './FlowEditor';
+
+// Mapeo de nombres de iconos a componentes
+const ICON_COMPONENTS = {
+  Folder,
+  BarChart3,
+  Link: LinkIcon,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+};
+
+// Helper para renderizar el icono del proyecto (soporta tanto nombres de iconos como emojis antiguos)
+const ProjectIcon = ({ iconName, className = "w-6 h-6" }) => {
+  // Si es un emoji antiguo, renderizarlo como texto
+  if (!iconName || /[\u{1F300}-\u{1F9FF}]/u.test(iconName)) {
+    return <span className={className.replace('w-', 'text-').replace('h-', '')}>{iconName || '📁'}</span>;
+  }
+  // Si es un nombre de icono, usar el componente Lucide
+  const IconComponent = ICON_COMPONENTS[iconName] || Folder;
+  return <IconComponent className={className} />;
+};
 
 // Función helper para convertir color hex a rgba con opacidad
 const hexToRgba = (hex, opacity) => {
@@ -625,14 +679,16 @@ export default function FlowList({ projectId, projectColor }) {
                       onClick={() => handleEdit(flow)}
                       className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
                     >
-                      ✏️ Editar
+                      <Pencil className="w-4 h-4 mr-1 inline" />
+                      Editar
                     </button>
                     <button
                       onClick={() => handleDuplicateClick(flow)}
                       className="flex-1 px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
                       title="Duplicar flujo"
                     >
-                      📋 Duplicar
+                      <Copy className="w-4 h-4 mr-1 inline" />
+                      Duplicar
                     </button>
                   </div>
                   <div className="flex space-x-2">
@@ -640,14 +696,16 @@ export default function FlowList({ projectId, projectColor }) {
                       href={`/dashboard/webhooks?flowId=${flow.id}`}
                       className="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-center"
                     >
-                      📊 Ver Historial
+                      <BarChart3 className="w-4 h-4 mr-1 inline" />
+                      Ver Historial
                     </Link>
                     <button
                       onClick={() => handleMoveClick(flow)}
                       className="px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
                       title="Mover a otro proyecto"
                     >
-                      📦 Mover
+                      <Package className="w-4 h-4 mr-1 inline" />
+                      Mover
                     </button>
                     <button
                       onClick={() => handleExportSingleFlow(flow)}
@@ -683,7 +741,7 @@ export default function FlowList({ projectId, projectColor }) {
                 className="text-gray-500 hover:text-gray-700"
                 disabled={importing}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -792,7 +850,7 @@ export default function FlowList({ projectId, projectColor }) {
                 className="text-gray-500 hover:text-gray-700"
                 disabled={duplicating}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -884,7 +942,7 @@ export default function FlowList({ projectId, projectColor }) {
                 className="text-gray-500 hover:text-gray-700"
                 disabled={moving}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -913,7 +971,7 @@ export default function FlowList({ projectId, projectColor }) {
                       disabled={moving}
                       className="w-full flex items-center space-x-3 p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span className="text-2xl">{project.icon || '📁'}</span>
+                      <ProjectIcon iconName={project.icon} className="w-6 h-6" />
                       <div className="flex-1 text-left">
                         <p className="font-medium text-gray-900">{project.name}</p>
                         {project.description && (

@@ -1,6 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  Settings,
+  Link as LinkIcon,
+  X,
+  Lightbulb,
+  ArrowLeft,
+  Bot,
+  RefreshCw,
+  GitBranch,
+} from 'lucide-react';
 
 // Constantes para evitar problemas con llaves en JSX
 const TEMPLATE_PLACEHOLDER = '{{ruta}}';
@@ -632,7 +642,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
           onClick={onCancel}
           className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
         >
-          <span>←</span>
+          <ArrowLeft className="w-4 h-4" />
           <span>Volver</span>
         </button>
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -676,7 +686,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                   }
                 `}
               >
-                <span className="mr-2">⚙️</span>
+                <Settings className="w-4 h-4 mr-2" />
                 Configuración General
               </button>
               <button
@@ -691,7 +701,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                   }
                 `}
               >
-                <span className="mr-2">🔗</span>
+                <LinkIcon className="w-4 h-4 mr-2" />
                 Llamadas Previas
                 {prevEndpoints.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
@@ -711,7 +721,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                   }
                 `}
               >
-                <span className="mr-2">🔄</span>
+                <GitBranch className="w-4 h-4 mr-2" />
                 Mapeo de Datos
                 {mappingEntries.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
@@ -852,7 +862,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                             }}
                             className="text-red-600 hover:text-red-700 px-2"
                           >
-                            ✕
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                       ))}
@@ -872,7 +882,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <span className="text-blue-400 text-xl">💡</span>
+                      <Lightbulb className="w-5 h-5 text-blue-400" />
                     </div>
                     <div className="ml-3">
                       <h3 className="text-sm font-medium text-blue-800">Información</h3>
@@ -1100,7 +1110,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                                       }}
                                       className="text-red-600 hover:text-red-700 px-2"
                                     >
-                                      ✕
+                                      <X className="w-4 h-4" />
                                     </button>
                                   </div>
                                 ))}
@@ -1173,7 +1183,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                                     }}
                                     className="text-red-600 hover:text-red-700 px-2"
                                   >
-                                    ✕
+                                    <X className="w-4 h-4" />
                                   </button>
                                 </div>
                               ))}
@@ -1202,13 +1212,14 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                                 onClick={() => setTestingEndpoint(null)}
                                 className="text-gray-500 hover:text-gray-700 text-sm"
                               >
-                                ✕
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
                             
                             {testingEndpoint.loading ? (
                               <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
-                                🔄 Probando endpoint...
+                                <RefreshCw className="w-4 h-4 mr-1 inline animate-spin" />
+                                Probando endpoint...
                               </div>
                             ) : testingEndpoint.error ? (
                               <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -1293,7 +1304,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                   className="flex items-center space-x-1 text-sm bg-purple-100 text-purple-700 px-3 py-1.5 rounded-md hover:bg-purple-200 transition-colors"
                   title="Mapeo inteligente con IA"
                 >
-                  <span>🤖</span>
+                  <Bot className="w-4 h-4" />
                   <span>Mapeo IA</span>
                 </button>
                 <button
@@ -1346,7 +1357,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                           className="px-2 py-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md transition-colors"
                           title="Configurar mapeo de valores"
                         >
-                          🔗
+                          <LinkIcon className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
@@ -1411,8 +1422,9 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">
-                    🔗 Configurar Mapeo de Valores
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <LinkIcon className="w-5 h-5 mr-2" />
+                    <span>Configurar Mapeo de Valores</span>
                   </h3>
                   <button
                     type="button"
@@ -1477,7 +1489,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                             disabled={mappingPairs.length === 1}
                             className="px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            ✕
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                       ))}
@@ -1717,7 +1729,8 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
               <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-gray-900">
-                    🤖 Mapeo Inteligente con IA
+                    <Bot className="w-5 h-5 mr-2 inline" />
+                    Mapeo Inteligente con IA
                   </h3>
                   <button
                     type="button"
@@ -1735,7 +1748,8 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 <div className="space-y-4">
                   {loadingExamples && (
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
-                      🔄 Obteniendo ejemplos automáticamente...
+                      <RefreshCw className="w-4 h-4 mr-1 inline animate-spin" />
+                      Obteniendo ejemplos automáticamente...
                     </div>
                   )}
                   <div>
@@ -1750,7 +1764,17 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                           disabled={loadingExamples}
                           className="text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50"
                         >
-                          {loadingExamples ? 'Cargando...' : '🔄 Obtener del historial'}
+                          {loadingExamples ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              <span>Cargando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              <span>Obtener del historial</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -1805,7 +1829,17 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                           disabled={loadingExamples}
                           className="text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50"
                         >
-                          {loadingExamples ? 'Cargando...' : '🔄 Obtener de la API'}
+                          {loadingExamples ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              <span>Cargando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              <span>Obtener de la API</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>

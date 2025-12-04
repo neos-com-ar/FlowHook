@@ -1,6 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  Folder,
+  BarChart3,
+  Link,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+  ArrowLeft,
+} from 'lucide-react';
 
 const COLORS = [
   '#3B82F6', // Blue
@@ -13,9 +32,30 @@ const COLORS = [
   '#84CC16', // Lime
 ];
 
+// Mapeo de nombres de iconos a componentes
+const ICON_COMPONENTS = {
+  Folder,
+  BarChart3,
+  Link,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+};
+
+// Lista de nombres de iconos (mantiene compatibilidad con el almacenamiento)
 const ICONS = [
-  '📁', '📊', '🔗', '🚀', '⚡', '🎯', '💡', '🔧',
-  '📱', '🌐', '📈', '🎨', '🔐', '📝', '🎪', '🌟',
+  'Folder', 'BarChart3', 'Link', 'Rocket', 'Zap', 'Target', 'Lightbulb', 'Settings',
+  'Smartphone', 'Globe', 'TrendingUp', 'Palette', 'Lock', 'FileText', 'PartyPopper', 'Star',
 ];
 
 export default function ProjectEditor({ project, onSave, onCancel }) {
@@ -24,7 +64,7 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
     description: '',
     isPersonal: true,
     color: '#3B82F6',
-    icon: '📁',
+    icon: 'Folder',
   });
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +75,7 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
         description: project.description || '',
         isPersonal: project.isPersonal !== undefined ? project.isPersonal : true,
         color: project.color || '#3B82F6',
-        icon: project.icon || '📁',
+        icon: project.icon || 'Folder',
       });
     }
   }, [project]);
@@ -91,7 +131,7 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
         onClick={onCancel}
         className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
       >
-        <span>←</span>
+        <ArrowLeft className="w-4 h-4" />
         <span>Volver</span>
       </button>
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -139,20 +179,23 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
               Icono
             </label>
             <div className="grid grid-cols-8 gap-2">
-              {ICONS.map((icon) => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, icon }))}
-                  className={`p-3 text-2xl rounded-md border-2 transition-colors ${
-                    formData.icon === icon
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {icon}
-                </button>
-              ))}
+              {ICONS.map((iconName) => {
+                const IconComponent = ICON_COMPONENTS[iconName];
+                return (
+                  <button
+                    key={iconName}
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, icon: iconName }))}
+                    className={`p-3 rounded-md border-2 transition-colors flex items-center justify-center ${
+                      formData.icon === iconName
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {IconComponent && <IconComponent className="w-5 h-5" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

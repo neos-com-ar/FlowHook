@@ -2,9 +2,65 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import {
+  ArrowLeft,
+  Package,
+  Users,
+  Pencil,
+  Trash2,
+  FolderOpen,
+  Folder,
+  BarChart3,
+  Link,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+} from 'lucide-react';
 import ProjectEditor from './ProjectEditor';
 import ProjectPermissions from './ProjectPermissions';
 import FlowList from './FlowList';
+
+// Mapeo de nombres de iconos a componentes
+const ICON_COMPONENTS = {
+  Folder,
+  BarChart3,
+  Link,
+  Rocket,
+  Zap,
+  Target,
+  Lightbulb,
+  Settings,
+  Smartphone,
+  Globe,
+  TrendingUp,
+  Palette,
+  Lock,
+  FileText,
+  PartyPopper,
+  Star,
+};
+
+// Helper para renderizar el icono del proyecto (soporta tanto nombres de iconos como emojis antiguos)
+const ProjectIcon = ({ iconName, className = "w-8 h-8" }) => {
+  // Si es un emoji antiguo, renderizarlo como texto
+  if (!iconName || /[\u{1F300}-\u{1F9FF}]/u.test(iconName)) {
+    const sizeClass = className.includes('w-8') ? 'text-3xl' : className.includes('w-6') ? 'text-2xl' : 'text-xl';
+    return <span className={sizeClass}>{iconName || '📁'}</span>;
+  }
+  // Si es un nombre de icono, usar el componente Lucide
+  const IconComponent = ICON_COMPONENTS[iconName] || Folder;
+  return <IconComponent className={className} />;
+};
 
 // Función helper para convertir color hex a rgba con opacidad
 const hexToRgba = (hex, opacity) => {
@@ -156,12 +212,12 @@ export default function ProjectList() {
           onClick={() => setShowOrphanFlows(false)}
           className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
         >
-          <span>←</span>
+          <ArrowLeft className="w-4 h-4" />
           <span>Volver a proyectos</span>
         </button>
         <div className="mb-6">
           <div className="flex items-center space-x-2">
-            <span className="text-2xl">📦</span>
+            <Package className="w-6 h-6" />
             <h1 className="text-2xl font-bold text-gray-900">Flujos sin Proyecto</h1>
           </div>
         </div>
@@ -184,27 +240,29 @@ export default function ProjectList() {
           onClick={() => setSelectedProject(null)}
           className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
         >
-          <span>←</span>
+          <ArrowLeft className="w-4 h-4" />
           <span>Volver a proyectos</span>
         </button>
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <span className="text-2xl">{selectedProject.icon}</span>
+              <ProjectIcon iconName={selectedProject.icon} className="w-6 h-6" />
               <h1 className="text-2xl font-bold text-gray-900">{selectedProject.name}</h1>
             </div>
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => handleOpenPermissions(selectedProject.id)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-2"
               >
-                👥 Permisos
+                <Users className="w-4 h-4" />
+                <span>Permisos</span>
               </button>
               <button
                 onClick={() => handleEditProject(selectedProject)}
-                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
+                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-2"
               >
-                ✏️ Editar
+                <Pencil className="w-4 h-4" />
+                <span>Editar</span>
               </button>
             </div>
           </div>
@@ -233,8 +291,9 @@ export default function ProjectList() {
         <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-yellow-900 mb-1">
-                📦 Flujos sin Proyecto ({orphanFlows.length})
+              <h3 className="text-lg font-semibold text-yellow-900 mb-1 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                <span>Flujos sin Proyecto ({orphanFlows.length})</span>
               </h3>
               <p className="text-sm text-yellow-700">
                 Tienes {orphanFlows.length} flujo(s) que no pertenecen a ningún proyecto.
@@ -275,7 +334,7 @@ export default function ProjectList() {
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center space-x-3">
-                    <span className="text-3xl">{project.icon || '📁'}</span>
+                    <ProjectIcon iconName={project.icon} className="w-8 h-8" />
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900">{project.name}</h2>
                       {!isPersonal && (
@@ -308,9 +367,10 @@ export default function ProjectList() {
                       e.stopPropagation();
                       setSelectedProject(project);
                     }}
-                    className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
+                    className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
                   >
-                    📂 Abrir
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Abrir</span>
                   </button>
                   <button
                     onClick={(e) => {
@@ -320,7 +380,7 @@ export default function ProjectList() {
                     className="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
                     title="Gestionar permisos"
                   >
-                    👥
+                    <Users className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => {
@@ -330,7 +390,7 @@ export default function ProjectList() {
                     className="px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
                     title="Editar proyecto"
                   >
-                    ✏️
+                    <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => {
@@ -340,7 +400,7 @@ export default function ProjectList() {
                     className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
                     title="Eliminar proyecto"
                   >
-                    🗑️
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

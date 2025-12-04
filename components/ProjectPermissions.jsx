@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { X, Crown, Pencil, Eye } from 'lucide-react';
 
 export default function ProjectPermissions({ projectId, onClose }) {
   const { data: session } = useSession();
@@ -155,7 +156,7 @@ export default function ProjectPermissions({ projectId, onClose }) {
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -238,11 +239,11 @@ export default function ProjectPermissions({ projectId, onClose }) {
                         <option value="owner">Owner</option>
                       </select>
                     ) : (
-                      <span className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">
-                        {perm.role === 'owner' && '👑 '}
-                        {perm.role === 'editor' && '✏️ '}
-                        {perm.role === 'viewer' && '👁️ '}
-                        {perm.role}
+                      <span className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md flex items-center gap-1">
+                        {perm.role === 'owner' && <Crown className="w-4 h-4" />}
+                        {perm.role === 'editor' && <Pencil className="w-4 h-4" />}
+                        {perm.role === 'viewer' && <Eye className="w-4 h-4" />}
+                        <span className="capitalize">{perm.role}</span>
                       </span>
                     )}
                     {canEdit && (

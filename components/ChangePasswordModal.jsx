@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function ChangePasswordModal({ isOpen, onClose }) {
   const { data: session } = useSession();
@@ -115,8 +116,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
 
         {success && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-sm text-green-800">
-              ✓ Contraseña cambiada correctamente.
+            <p className="text-sm text-green-800 flex items-center">
+              <CheckCircle2 className="w-4 h-4 mr-1" />
+              <span>Contraseña cambiada correctamente.</span>
             </p>
           </div>
         )}
@@ -181,7 +183,12 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
               disabled={loading || success}
               className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Cambiando...' : success ? '✓ Cambiada' : 'Cambiar Contraseña'}
+              {loading ? 'Cambiando...' : success ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                  Cambiada
+                </>
+              ) : 'Cambiar Contraseña'}
             </button>
             <button
               type="button"
