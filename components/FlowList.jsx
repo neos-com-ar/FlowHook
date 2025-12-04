@@ -25,6 +25,9 @@ import {
   FileText,
   PartyPopper,
   Star,
+  Download,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import FlowEditor from './FlowEditor';
 
@@ -584,17 +587,19 @@ export default function FlowList({ projectId, projectColor }) {
           <button
             onClick={handleExportFlows}
             disabled={flows.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             title="Exportar todos los flujos a un archivo JSON"
           >
-            📤 Exportar
+            <Download className="w-4 h-4" />
+            Exportar
           </button>
           <button
             onClick={handleImportClick}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors flex items-center gap-2"
             title="Importar flujos desde un archivo JSON"
           >
-            📥 Importar
+            <Upload className="w-4 h-4" />
+            Importar
           </button>
           <button
             onClick={handleNewFlow}
@@ -639,10 +644,10 @@ export default function FlowList({ projectId, projectColor }) {
                     </code>
                     <button
                       onClick={() => copyToClipboard(webhookUrl)}
-                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors flex items-center justify-center"
                       title="Copiar URL"
                     >
-                      📋
+                      <Copy className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -709,16 +714,18 @@ export default function FlowList({ projectId, projectColor }) {
                     </button>
                     <button
                       onClick={() => handleExportSingleFlow(flow)}
-                      className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                      className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors flex items-center gap-1"
                       title="Exportar este flujo"
                     >
-                      📤 Exportar
+                      <Download className="w-4 h-4" />
+                      Exportar
                     </button>
                     <button
                       onClick={() => handleDelete(flow.id)}
-                      className="flex-1 px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+                      className="flex-1 px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center gap-1"
                     >
-                      🗑️ Eliminar
+                      <Trash2 className="w-4 h-4" />
+                      Eliminar
                     </button>
                   </div>
                 </div>
