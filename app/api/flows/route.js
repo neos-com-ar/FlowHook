@@ -175,6 +175,7 @@ export async function POST(request) {
       destino: body.destino,
       method: method,
       map: body.map || {},
+      headers: body.headers || undefined, // Headers personalizados del destino
       erpEndpoints: erpEndpoints.length > 0 ? erpEndpoints : null, // Array de endpoints del ERP
       erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
       ownerId: userId,
@@ -280,6 +281,7 @@ export async function PUT(request) {
       destino: originalFlow.destino,
       method: originalFlow.method || 'POST',
       map: originalFlow.map ? { ...originalFlow.map } : {},
+      headers: originalFlow.headers ? { ...originalFlow.headers } : undefined, // Headers personalizados del destino
       erpEndpoints: originalFlow.erpEndpoints ? originalFlow.erpEndpoints.map(e => ({ ...e })) : null,
       erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad
       ownerId: userId,

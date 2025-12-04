@@ -34,6 +34,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'mapping'
   const [testingEndpoint, setTestingEndpoint] = useState(null); // {index, loading, result, error}
   const [testWebhookData, setTestWebhookData] = useState('{}'); // Datos de ejemplo para probar
+  const [destinationHeaders, setDestinationHeaders] = useState([]); // Headers del destino
 
   useEffect(() => {
     if (flow) {
@@ -51,6 +52,18 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
           src,
         }))
       );
+      
+      // Configurar headers del destino si existen
+      if (flow.headers && typeof flow.headers === 'object') {
+        setDestinationHeaders(
+          Object.entries(flow.headers).map(([key, value]) => ({
+            key,
+            value,
+          }))
+        );
+      } else {
+        setDestinationHeaders([]);
+      }
       
       // Configurar endpoints previos si existen
       // Soporte para array (múltiples) o objeto único (retrocompatibilidad)
@@ -568,9 +581,18 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         };
       });
 
+    // Construir los headers del destino
+    const destinationHeadersObj = {};
+    destinationHeaders.forEach((entry) => {
+      if (entry.key && entry.value) {
+        destinationHeadersObj[entry.key] = entry.value;
+      }
+    });
+
     const flowData = {
       ...formData,
       map,
+      headers: Object.keys(destinationHeadersObj).length > 0 ? destinationHeadersObj : undefined,
       erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
       projectId: projectId || flow?.projectId,
     };
@@ -774,6 +796,75 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <option value="PATCH">PATCH</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Headers del Destino */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Headers del Destino
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Configura headers personalizados que se enviarán en la llamada al destino (ej: X-Tenant-ID, Authorization, etc.)
+                  </p>
+                  {destinationHeaders.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDestinationHeaders([{ key: '', value: '' }]);
+                      }}
+                      className="text-sm text-indigo-600 hover:text-indigo-700"
+                    >
+                      + Agregar Header
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {destinationHeaders.map((entry, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={entry.key}
+                            onChange={(e) => {
+                              const newHeaders = [...destinationHeaders];
+                              newHeaders[index].key = e.target.value;
+                              setDestinationHeaders(newHeaders);
+                            }}
+                            placeholder="Nombre del header (ej: X-Tenant-ID)"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                          <span className="text-gray-500">:</span>
+                          <input
+                            type="text"
+                            value={entry.value}
+                            onChange={(e) => {
+                              const newHeaders = [...destinationHeaders];
+                              newHeaders[index].value = e.target.value;
+                              setDestinationHeaders(newHeaders);
+                            }}
+                            placeholder="Valor (ej: pablobruno)"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDestinationHeaders(destinationHeaders.filter((_, i) => i !== index));
+                            }}
+                            className="text-red-600 hover:text-red-700 px-2"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDestinationHeaders([...destinationHeaders, { key: '', value: '' }]);
+                        }}
+                        className="text-sm text-indigo-600 hover:text-indigo-700"
+                      >
+                        + Agregar Header
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">

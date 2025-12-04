@@ -332,14 +332,22 @@ export async function POST(request, { params }) {
       const allowedMethods = ['POST', 'PUT', 'PATCH'];
       const method = allowedMethods.includes(httpMethod) ? httpMethod.toLowerCase() : 'post';
       
+      // Construir headers: combinar headers personalizados con Content-Type por defecto
+      const headers = {
+        'Content-Type': 'application/json', // Por defecto
+      };
+      
+      // Agregar headers personalizados del flujo (pueden sobrescribir Content-Type si se especifica)
+      if (flow.headers && typeof flow.headers === 'object') {
+        Object.assign(headers, flow.headers);
+      }
+      
       // Realizar la petición con el método seleccionado
       const response = await axios({
         method: method,
         url: flow.destino,
         data: mappedData,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         timeout: 30000, // 30 segundos
       });
 
