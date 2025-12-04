@@ -177,7 +177,7 @@ export default function WebhooksPage() {
           <option value="">Todos los flujos</option>
           {flows.map((flow) => (
             <option key={flow.id} value={flow.id}>
-              {flow.name} ({flow.id})
+              {flow.projectName ? `${flow.projectName} - ` : ''}{flow.name} ({flow.id})
             </option>
           ))}
         </select>
@@ -204,7 +204,7 @@ export default function WebhooksPage() {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
+                  <div className="flex items-center space-x-3 mb-2 flex-wrap gap-2">
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
                         webhook.result?.success
@@ -214,7 +214,15 @@ export default function WebhooksPage() {
                     >
                       {webhook.result?.success ? '✓ Exitoso' : '✗ Error'}
                     </span>
-                    <span className="text-sm text-gray-600">
+                    {webhook.projectName && (
+                      <>
+                        <span className="text-sm font-semibold text-indigo-600">
+                          {webhook.projectName}
+                        </span>
+                        <span className="text-gray-400">•</span>
+                      </>
+                    )}
+                    <span className="text-sm text-gray-700 font-medium">
                       {webhook.flowName || webhook.flowId}
                     </span>
                     {webhook.flowId && (

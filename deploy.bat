@@ -1,3 +1,7 @@
+::IMPORTATE************
+::Se debe poner el repositorio como publico en github para que se pueda actualizar de forma automatica en vercel y visualizar los cambios desde la web.
+::****************** 
+
 :: iniciar la aplicacion modo developer
 npm run dev 
 
