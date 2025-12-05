@@ -174,6 +174,55 @@ export async function POST(request) {
       }
     }
 
+    // Validar condiciones si están configuradas
+    if (body.conditions && Array.isArray(body.conditions)) {
+      const allowedOperators = ['equals', 'notEquals', 'greaterThan', 'lessThan', 'contains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'];
+      const allowedLogicalOperators = ['AND', 'OR'];
+      const allowedFailureActions = ['error', 'skip'];
+      
+      for (const condition of body.conditions) {
+        // Validar que tenga los campos requeridos
+        if (!condition.field || !condition.operator) {
+          return NextResponse.json(
+            { error: 'Invalid condition: field and operator are required' },
+            { status: 400 }
+          );
+        }
+        
+        // Validar operador
+        if (!allowedOperators.includes(condition.operator)) {
+          return NextResponse.json(
+            { error: `Invalid condition operator: ${condition.operator}. Allowed operators: ${allowedOperators.join(', ')}` },
+            { status: 400 }
+          );
+        }
+        
+        // Validar que tenga valor para operadores que lo requieren
+        if (!['isEmpty', 'isNotEmpty'].includes(condition.operator) && (condition.value === undefined || condition.value === '')) {
+          return NextResponse.json(
+            { error: `Invalid condition: value is required for operator ${condition.operator}` },
+            { status: 400 }
+          );
+        }
+        
+        // Validar operador lógico si está presente
+        if (condition.logicalOperator && !allowedLogicalOperators.includes(condition.logicalOperator)) {
+          return NextResponse.json(
+            { error: `Invalid logical operator: ${condition.logicalOperator}. Allowed operators: ${allowedLogicalOperators.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+    
+    // Validar condición de acción cuando falla
+    if (body.conditionFailureAction && !['error', 'skip'].includes(body.conditionFailureAction)) {
+      return NextResponse.json(
+        { error: `Invalid conditionFailureAction: ${body.conditionFailureAction}. Allowed values: error, skip` },
+        { status: 400 }
+      );
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
@@ -183,6 +232,8 @@ export async function POST(request) {
       headers: body.headers || undefined, // Headers personalizados del destino
       erpEndpoints: erpEndpoints.length > 0 ? erpEndpoints : null, // Array de endpoints del ERP
       erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
+      conditions: body.conditions && Array.isArray(body.conditions) && body.conditions.length > 0 ? body.conditions : undefined,
+      conditionFailureAction: body.conditionFailureAction || undefined,
       ownerId: userId,
     };
 
@@ -289,6 +340,8 @@ export async function PUT(request) {
       headers: originalFlow.headers ? { ...originalFlow.headers } : undefined, // Headers personalizados del destino
       erpEndpoints: originalFlow.erpEndpoints ? originalFlow.erpEndpoints.map(e => ({ ...e })) : null,
       erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad
+      conditions: originalFlow.conditions ? originalFlow.conditions.map(c => ({ ...c })) : undefined,
+      conditionFailureAction: originalFlow.conditionFailureAction || undefined,
       ownerId: userId,
     };
 

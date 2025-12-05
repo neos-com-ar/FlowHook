@@ -214,12 +214,57 @@ export async function POST(request, { params }) {
     }
     
     // Combinar body del webhook con datos de endpoints previos para el mapeo
+    // Estructurar datos para acceso con prefijo "data." (ej: data.estado)
     const combinedData = {
-      ...body,
+      data: body, // Los datos del webhook estarán disponibles como "data.campo"
       prev: prevData, // Los datos de endpoints previos estarán disponibles como "prev.nombreEndpoint.campo"
     };
 
-    // PASO 2: Aplicar el mapeo de datos (ahora puede incluir datos de endpoints previos)
+    // PASO 2: Evaluar condiciones (después de las llamadas previas, antes del mapeo)
+    if (flow.conditions && Array.isArray(flow.conditions) && flow.conditions.length > 0) {
+      const conditionsPass = evaluateConditions(flow.conditions, combinedData);
+      
+      if (!conditionsPass) {
+        const failureAction = flow.conditionFailureAction || 'error';
+        
+        if (failureAction === 'skip') {
+          // Cancelar silenciosamente - guardar en historial y retornar éxito
+          await saveWebhook(userId, flowId, {
+            incomingData: body,
+            prevData: Object.keys(prevData).length > 0 ? prevData : undefined,
+            mappedData: null,
+            result: {
+              success: false,
+              status: 200,
+              error: 'Conditions not met - flow skipped',
+              message: 'El flujo fue cancelado porque las condiciones no se cumplieron',
+              responseTime: null,
+            },
+            flowName: flow.name,
+            destino: flow.destino,
+            method: flow.method || 'POST',
+          });
+          
+          return NextResponse.json({
+            success: false,
+            message: 'Conditions not met - flow skipped',
+            skipped: true,
+          }, { status: 200 });
+        } else {
+          // Devolver error HTTP 400
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Conditions not met',
+              message: 'Las condiciones configuradas no se cumplieron',
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // PASO 3: Aplicar el mapeo de datos (ahora puede incluir datos de endpoints previos)
     const mappedData = {};
     if (flow.map && typeof flow.map === 'object') {
       for (const [destKey, sourceKey] of Object.entries(flow.map)) {
@@ -521,6 +566,89 @@ function processTemplate(template, webhookData) {
     return String(value);
   });
   
+  return result;
+}
+
+// Función para evaluar condiciones
+function evaluateConditions(conditions, data) {
+  if (!conditions || !Array.isArray(conditions) || conditions.length === 0) {
+    return true; // Si no hay condiciones, se considera que pasan
+  }
+
+  // Filtrar solo condiciones válidas
+  const validConditions = conditions.filter(
+    (condition) => condition.field && condition.operator
+  );
+
+  if (validConditions.length === 0) {
+    return true;
+  }
+
+  // Evaluar cada condición
+  const conditionResults = validConditions.map((condition) => {
+    const fieldValue = getNestedValue(data, condition.field);
+
+    switch (condition.operator) {
+      case 'equals':
+        // Comparar como string o número según el tipo del valor
+        const equalsValue = condition.value;
+        if (typeof fieldValue === 'number' || !isNaN(equalsValue)) {
+          return Number(fieldValue) === Number(equalsValue);
+        }
+        return String(fieldValue) === String(equalsValue);
+
+      case 'notEquals':
+        const notEqualsValue = condition.value;
+        if (typeof fieldValue === 'number' || !isNaN(notEqualsValue)) {
+          return Number(fieldValue) !== Number(notEqualsValue);
+        }
+        return String(fieldValue) !== String(notEqualsValue);
+
+      case 'greaterThan':
+        return Number(fieldValue) > Number(condition.value);
+
+      case 'lessThan':
+        return Number(fieldValue) < Number(condition.value);
+
+      case 'contains':
+        return String(fieldValue).includes(String(condition.value));
+
+      case 'startsWith':
+        return String(fieldValue).startsWith(String(condition.value));
+
+      case 'endsWith':
+        return String(fieldValue).endsWith(String(condition.value));
+
+      case 'isEmpty':
+        return fieldValue === undefined || fieldValue === null || fieldValue === '' ||
+               (Array.isArray(fieldValue) && fieldValue.length === 0) ||
+               (typeof fieldValue === 'object' && Object.keys(fieldValue).length === 0);
+
+      case 'isNotEmpty':
+        return fieldValue !== undefined && fieldValue !== null && fieldValue !== '' &&
+               !(Array.isArray(fieldValue) && fieldValue.length === 0) &&
+               !(typeof fieldValue === 'object' && Object.keys(fieldValue).length === 0);
+
+      default:
+        console.warn(`Operador desconocido: ${condition.operator}`);
+        return false;
+    }
+  });
+
+  // Aplicar operadores lógicos
+  let result = conditionResults[0];
+  
+  for (let i = 1; i < conditionResults.length; i++) {
+    const logicalOperator = validConditions[i].logicalOperator || 'AND';
+    
+    if (logicalOperator === 'OR') {
+      result = result || conditionResults[i];
+    } else {
+      // AND por defecto
+      result = result && conditionResults[i];
+    }
+  }
+
   return result;
 }
 

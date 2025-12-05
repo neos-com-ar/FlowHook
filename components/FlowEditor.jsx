@@ -10,6 +10,7 @@ import {
   Bot,
   RefreshCw,
   GitBranch,
+  Filter,
 } from 'lucide-react';
 
 // Constantes para evitar problemas con llaves en JSX
@@ -41,10 +42,12 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [literalObjectValue, setLiteralObjectValue] = useState('{}'); // Para objetos JSON
   const [literalArrayValue, setLiteralArrayValue] = useState('[]'); // Para arrays JSON
   const [useTemplate, setUseTemplate] = useState(false); // Si usa templates {{ruta}}
-  const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'mapping'
+  const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'conditions', 'mapping'
   const [testingEndpoint, setTestingEndpoint] = useState(null); // {index, loading, result, error}
   const [testWebhookData, setTestWebhookData] = useState('{}'); // Datos de ejemplo para probar
   const [destinationHeaders, setDestinationHeaders] = useState([]); // Headers del destino
+  const [conditions, setConditions] = useState([]); // Array de condiciones
+  const [conditionFailureAction, setConditionFailureAction] = useState('error'); // 'error' o 'skip'
 
   useEffect(() => {
     if (flow) {
@@ -103,6 +106,20 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
           }))
         );
       }
+      
+      // Configurar condiciones si existen
+      if (flow.conditions && Array.isArray(flow.conditions)) {
+        setConditions(flow.conditions);
+      } else {
+        setConditions([]);
+      }
+      
+      // Configurar acción cuando falla la condición
+      if (flow.conditionFailureAction) {
+        setConditionFailureAction(flow.conditionFailureAction);
+      } else {
+        setConditionFailureAction('error');
+      }
     }
   }, [flow]);
 
@@ -129,6 +146,32 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
 
   const removeMappingEntry = (index) => {
     setMappingEntries(mappingEntries.filter((_, i) => i !== index));
+  };
+
+  // Funciones para manejar condiciones
+  const addCondition = () => {
+    setConditions([
+      ...conditions,
+      {
+        field: '',
+        operator: 'equals',
+        value: '',
+        logicalOperator: conditions.length > 0 ? 'AND' : undefined,
+      },
+    ]);
+  };
+
+  const updateCondition = (index, field, value) => {
+    const newConditions = [...conditions];
+    newConditions[index] = {
+      ...newConditions[index],
+      [field]: value,
+    };
+    setConditions(newConditions);
+  };
+
+  const removeCondition = (index) => {
+    setConditions(conditions.filter((_, i) => i !== index));
   };
 
   const handleOpenMappingModal = (index, currentSourceKey) => {
@@ -599,11 +642,18 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       }
     });
 
+    // Construir las condiciones (solo si tienen campo, operador y valor)
+    const validConditions = conditions.filter(
+      (condition) => condition.field && condition.operator && condition.value !== undefined && condition.value !== ''
+    );
+
     const flowData = {
       ...formData,
       map,
       headers: Object.keys(destinationHeadersObj).length > 0 ? destinationHeadersObj : undefined,
       erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
+      conditions: validConditions.length > 0 ? validConditions : undefined,
+      conditionFailureAction: conditionFailureAction || 'error',
       projectId: projectId || flow?.projectId,
     };
 
@@ -706,6 +756,26 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 {prevEndpoints.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
                     {prevEndpoints.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('conditions')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'conditions'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                Condiciones
+                {conditions.length > 0 && (
+                  <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
+                    {conditions.filter(c => c.field && c.operator && c.value).length}
                   </span>
                 )}
               </button>
@@ -1282,6 +1352,204 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Pestaña: Condiciones */}
+            {activeTab === 'conditions' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Condiciones y Filtros
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Configura condiciones para evaluar los datos antes de ejecutar el endpoint final.
+                      Si las condiciones no se cumplen, el flujo se puede cancelar o devolver un error.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addCondition}
+                    className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    + Agregar Condición
+                  </button>
+                </div>
+
+                {conditions.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-md bg-gray-50">
+                    <span className="text-4xl mb-4 block">🔍</span>
+                    <p className="text-gray-500 text-sm mb-4">No hay condiciones configuradas</p>
+                    <button
+                      type="button"
+                      onClick={addCondition}
+                      className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                      + Agregar Primera Condición
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {conditions.map((condition, index) => (
+                      <div key={index} className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-medium text-gray-700">
+                            Condición {index + 1}
+                            {index > 0 && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                ({condition.logicalOperator || 'AND'})
+                              </span>
+                            )}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => removeCondition(index)}
+                            className="text-red-600 hover:text-red-700 text-sm"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+
+                        <div className="space-y-4">
+                          {index > 0 && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Operador Lógico
+                              </label>
+                              <select
+                                value={condition.logicalOperator || 'AND'}
+                                onChange={(e) => updateCondition(index, 'logicalOperator', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                              >
+                                <option value="AND">Y (AND) - Todas las condiciones deben cumplirse</option>
+                                <option value="OR">O (OR) - Al menos una condición debe cumplirse</option>
+                              </select>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Campo a Evaluar *
+                            </label>
+                            <input
+                              type="text"
+                              value={condition.field}
+                              onChange={(e) => updateCondition(index, 'field', e.target.value)}
+                              placeholder="data.estado o prev.endpoint1.estado"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Ruta del campo. Usa <code className="bg-gray-200 px-1 rounded">data.campo</code> para datos del webhook o <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> para datos de llamadas previas.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Operador *
+                            </label>
+                            <select
+                              value={condition.operator}
+                              onChange={(e) => updateCondition(index, 'operator', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                            >
+                              <option value="equals">Igual a</option>
+                              <option value="notEquals">Diferente de</option>
+                              <option value="greaterThan">Mayor que</option>
+                              <option value="lessThan">Menor que</option>
+                              <option value="contains">Contiene (strings)</option>
+                              <option value="startsWith">Empieza con</option>
+                              <option value="endsWith">Termina con</option>
+                              <option value="isEmpty">Está vacío</option>
+                              <option value="isNotEmpty">No está vacío</option>
+                            </select>
+                          </div>
+
+                          {!['isEmpty', 'isNotEmpty'].includes(condition.operator) && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Valor a Comparar *
+                              </label>
+                              <input
+                                type="text"
+                                value={condition.value || ''}
+                                onChange={(e) => updateCondition(index, 'value', e.target.value)}
+                                placeholder="AUTORIZADO"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              />
+                              <p className="mt-1 text-xs text-gray-500">
+                                Valor con el que se comparará el campo. Para números, ingresa solo el número.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Preview de la condición */}
+                          {condition.field && condition.operator && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                              <p className="text-xs text-blue-800">
+                                <strong>Vista previa:</strong>{' '}
+                                <code className="bg-blue-100 px-1 rounded">
+                                  {condition.field}{' '}
+                                  {condition.operator === 'equals' && '==='}
+                                  {condition.operator === 'notEquals' && '!=='}
+                                  {condition.operator === 'greaterThan' && '>'}
+                                  {condition.operator === 'lessThan' && '<'}
+                                  {condition.operator === 'contains' && 'contiene'}
+                                  {condition.operator === 'startsWith' && 'empieza con'}
+                                  {condition.operator === 'endsWith' && 'termina con'}
+                                  {condition.operator === 'isEmpty' && 'está vacío'}
+                                  {condition.operator === 'isNotEmpty' && 'no está vacío'}{' '}
+                                  {!['isEmpty', 'isNotEmpty'].includes(condition.operator) && (
+                                    <span>"{condition.value}"</span>
+                                  )}
+                                </code>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Configuración de acción cuando falla */}
+                {conditions.filter(c => c.field && c.operator).length > 0 && (
+                  <div className="mt-6 bg-gray-50 border border-gray-200 rounded-md p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Acción cuando las condiciones NO se cumplen
+                    </label>
+                    <select
+                      value={conditionFailureAction}
+                      onChange={(e) => setConditionFailureAction(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                    >
+                      <option value="error">Devolver error HTTP 400 (Bad Request)</option>
+                      <option value="skip">Cancelar silenciosamente (no enviar al destino)</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Define qué ocurre cuando las condiciones no se cumplen. Si eliges "error", el webhook devolverá un error HTTP 400. Si eliges "skip", el flujo simplemente no enviará datos al destino.
+                    </p>
+                  </div>
+                )}
+
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <Lightbulb className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">Información</h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Las condiciones se evalúan después de las llamadas previas pero antes del mapeo y envío al destino</li>
+                          <li>Puedes usar datos del webhook con <code className="bg-blue-100 px-1 rounded">data.campo</code></li>
+                          <li>Puedes usar datos de llamadas previas con <code className="bg-blue-100 px-1 rounded">prev.nombreEndpoint.campo</code></li>
+                          <li>Las condiciones se evalúan en orden con los operadores lógicos especificados</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
