@@ -367,6 +367,7 @@ export async function POST(request, { params }) {
         status: response.status,
         message: 'Webhook processed and forwarded successfully',
         responseTime,
+        responseData: response.data || null, // Incluir la respuesta real del endpoint destino
       };
 
       // Guardar el webhook en el historial
@@ -384,7 +385,9 @@ export async function POST(request, { params }) {
         success: true,
         message: 'Webhook processed and forwarded successfully',
         status: response.status,
+        responseTime,
         data: mappedData,
+        responseData: response.data || null, // Incluir la respuesta real del endpoint destino
       });
     } catch (error) {
       console.error('Error forwarding webhook:', error);
@@ -526,4 +529,5 @@ export async function GET() {
     { status: 405 }
   );
 }
+
 

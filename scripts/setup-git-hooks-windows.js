@@ -54,3 +54,4 @@ ${hookContent}
   process.exit(1);
 }
 
+
