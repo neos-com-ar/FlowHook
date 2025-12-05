@@ -375,6 +375,7 @@ export async function POST(request, { params }) {
         incomingData: body,
         prevData: Object.keys(prevData).length > 0 ? prevData : undefined, // Incluir todos los datos de endpoints previos
         mappedData,
+        headers, // Incluir los headers enviados
         result: webhookResult,
         flowName: flow.name,
         destino: flow.destino,
@@ -416,6 +417,7 @@ export async function POST(request, { params }) {
         incomingData: body,
         prevData: Object.keys(prevData).length > 0 ? prevData : undefined,
         mappedData,
+        headers, // Incluir los headers enviados
         result: webhookResult,
         flowName: flow.name,
         destino: flow.destino,

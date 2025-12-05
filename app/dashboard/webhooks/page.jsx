@@ -313,6 +313,14 @@ export default function WebhooksPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Headers enviados:
+                    </h3>
+                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                      {JSON.stringify(webhook.headers || {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
                       Datos mapeados enviados:
                     </h3>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
