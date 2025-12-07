@@ -11,6 +11,7 @@ import {
   RefreshCw,
   GitBranch,
   Filter,
+  Zap,
 } from 'lucide-react';
 
 // Constantes para evitar problemas con llaves en JSX
@@ -42,12 +43,13 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [literalObjectValue, setLiteralObjectValue] = useState('{}'); // Para objetos JSON
   const [literalArrayValue, setLiteralArrayValue] = useState('[]'); // Para arrays JSON
   const [useTemplate, setUseTemplate] = useState(false); // Si usa templates {{ruta}}
-  const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'conditions', 'mapping'
+  const [activeTab, setActiveTab] = useState('config'); // 'config', 'prev', 'conditions', 'mapping', 'actions'
   const [testingEndpoint, setTestingEndpoint] = useState(null); // {index, loading, result, error}
   const [testWebhookData, setTestWebhookData] = useState('{}'); // Datos de ejemplo para probar
   const [destinationHeaders, setDestinationHeaders] = useState([]); // Headers del destino
   const [conditions, setConditions] = useState([]); // Array de condiciones
   const [conditionFailureAction, setConditionFailureAction] = useState('error'); // 'error' o 'skip'
+  const [postResponseActions, setPostResponseActions] = useState([]); // Array de acciones post-respuesta
 
   useEffect(() => {
     if (flow) {
@@ -119,6 +121,29 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         setConditionFailureAction(flow.conditionFailureAction);
       } else {
         setConditionFailureAction('error');
+      }
+      
+      // Configurar acciones post-respuesta si existen
+      if (flow.postResponseActions && Array.isArray(flow.postResponseActions)) {
+        setPostResponseActions(
+          flow.postResponseActions.map((action) => ({
+            name: action.name || '',
+            url: action.url || '',
+            method: action.method || 'POST',
+            onlyOnSuccess: action.onlyOnSuccess !== undefined ? action.onlyOnSuccess : true,
+            required: action.required || false,
+            bodyMapEntries: Object.entries(action.bodyMap || {}).map(([key, value]) => ({
+              key,
+              value,
+            })),
+            headerEntries: Object.entries(action.headers || {}).map(([key, value]) => ({
+              key,
+              value,
+            })),
+          }))
+        );
+      } else {
+        setPostResponseActions([]);
       }
     }
   }, [flow]);
@@ -647,6 +672,35 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       (condition) => condition.field && condition.operator && condition.value !== undefined && condition.value !== ''
     );
 
+    // Construir las acciones post-respuesta
+    const postResponseActionsData = postResponseActions
+      .filter((action) => action.url) // Solo incluir acciones con URL
+      .map((action) => {
+        const bodyMap = {};
+        action.bodyMapEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            bodyMap[entry.key] = entry.value;
+          }
+        });
+        
+        const headers = {};
+        action.headerEntries.forEach((entry) => {
+          if (entry.key && entry.value) {
+            headers[entry.key] = entry.value;
+          }
+        });
+        
+        return {
+          name: action.name || undefined,
+          url: action.url,
+          method: action.method,
+          onlyOnSuccess: action.onlyOnSuccess !== undefined ? action.onlyOnSuccess : true,
+          required: action.required || false,
+          bodyMap: Object.keys(bodyMap).length > 0 ? bodyMap : undefined,
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
+        };
+      });
+
     const flowData = {
       ...formData,
       map,
@@ -654,6 +708,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
       conditions: validConditions.length > 0 ? validConditions : undefined,
       conditionFailureAction: conditionFailureAction || 'error',
+      postResponseActions: postResponseActionsData.length > 0 ? postResponseActionsData : null,
       projectId: projectId || flow?.projectId,
     };
 
@@ -752,7 +807,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 `}
               >
                 <LinkIcon className="w-4 h-4 mr-2" />
-                Llamadas Previas
+                Acciones Previas
                 {prevEndpoints.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
                     {prevEndpoints.length}
@@ -796,6 +851,26 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 {mappingEntries.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
                     {mappingEntries.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('actions')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'actions'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Acciones
+                {postResponseActions.length > 0 && (
+                  <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
+                    {postResponseActions.length}
                   </span>
                 )}
               </button>
@@ -968,13 +1043,13 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
               </div>
             )}
 
-            {/* Pestaña: Llamadas Previas */}
+            {/* Pestaña: Acciones Previas */}
             {activeTab === 'prev' && (
               <div className="space-y-6 transition-all duration-200">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Llamadas Previas a Endpoints
+                      Acciones Previas a Endpoints
                     </h3>
                     <p className="text-sm text-gray-500">
                       Configura una o más llamadas previas a endpoints para obtener datos (ej: idCliente, idProducto) antes de enviar al destino.
@@ -1663,6 +1738,346 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 ))}
               </div>
             )}
+              </div>
+            )}
+
+            {/* Pestaña: Acciones */}
+            {activeTab === 'actions' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Acciones Post-Respuesta
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Configura acciones que se ejecutarán después de recibir la respuesta del endpoint destino.
+                      Puedes usar datos de la respuesta como <code className="bg-gray-100 px-1 rounded text-xs">response.id</code>, 
+                      datos del webhook como <code className="bg-gray-100 px-1 rounded text-xs">data.email</code>, 
+                      y datos de llamadas previas como <code className="bg-gray-100 px-1 rounded text-xs">prev.nombreEndpoint.campo</code>.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPostResponseActions([...postResponseActions, {
+                      name: '',
+                      url: '',
+                      method: 'POST',
+                      onlyOnSuccess: true,
+                      required: false,
+                      bodyMapEntries: [],
+                      headerEntries: [],
+                    }])}
+                    className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    + Agregar Acción
+                  </button>
+                </div>
+
+                {postResponseActions.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-md bg-gray-50">
+                    <span className="text-4xl mb-4 block">⚡</span>
+                    <p className="text-gray-500 text-sm mb-4">No hay acciones configuradas</p>
+                    <button
+                      type="button"
+                      onClick={() => setPostResponseActions([...postResponseActions, {
+                        name: '',
+                        url: '',
+                        method: 'POST',
+                        onlyOnSuccess: true,
+                        required: false,
+                        bodyMapEntries: [],
+                        headerEntries: [],
+                      }])}
+                      className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                      + Agregar Primera Acción
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {postResponseActions.map((action, actionIndex) => (
+                      <div key={actionIndex} className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-medium text-gray-700">
+                            Acción {actionIndex + 1} {action.name && `(${action.name})`}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setPostResponseActions(postResponseActions.filter((_, i) => i !== actionIndex))}
+                            className="text-red-600 hover:text-red-700 text-sm"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Nombre de la Acción (opcional)
+                            </label>
+                            <input
+                              type="text"
+                              value={action.name}
+                              onChange={(e) => {
+                                const newActions = [...postResponseActions];
+                                newActions[actionIndex].name = e.target.value;
+                                setPostResponseActions(newActions);
+                              }}
+                              placeholder="ej: actualizar-id-externo"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Nombre descriptivo para identificar esta acción
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                URL del Endpoint *
+                              </label>
+                              <input
+                                type="url"
+                                value={action.url}
+                                onChange={(e) => {
+                                  const newActions = [...postResponseActions];
+                                  newActions[actionIndex].url = e.target.value;
+                                  setPostResponseActions(newActions);
+                                }}
+                                placeholder="https://api.ejemplo.com/clientes/{{data.idCliente}}"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              />
+                              <p className="mt-1 text-xs text-gray-500">
+                                Usa <code className="bg-gray-200 px-1 rounded">{'{{response.id}}'}</code>, <code className="bg-gray-200 px-1 rounded">{'{{data.campo}}'}</code> o <code className="bg-gray-200 px-1 rounded">{'{{prev.nombreEndpoint.campo}}'}</code> para inyectar valores
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Método HTTP *
+                              </label>
+                              <select
+                                value={action.method}
+                                onChange={(e) => {
+                                  const newActions = [...postResponseActions];
+                                  newActions[actionIndex].method = e.target.value;
+                                  setPostResponseActions(newActions);
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                              >
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="PATCH">PATCH</option>
+                                <option value="DELETE">DELETE</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={action.onlyOnSuccess}
+                              onChange={(e) => {
+                                const newActions = [...postResponseActions];
+                                newActions[actionIndex].onlyOnSuccess = e.target.checked;
+                                setPostResponseActions(newActions);
+                              }}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <label className="text-sm text-gray-700 cursor-pointer">
+                              Ejecutar solo si el endpoint destino fue exitoso
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={action.required}
+                              onChange={(e) => {
+                                const newActions = [...postResponseActions];
+                                newActions[actionIndex].required = e.target.checked;
+                                setPostResponseActions(newActions);
+                              }}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <label className="text-sm text-gray-700 cursor-pointer">
+                              Requerido (si falla, se registrará el error pero el flujo continuará)
+                            </label>
+                          </div>
+
+                          {/* Mapeo del Body para la Acción */}
+                          {['POST', 'PUT', 'PATCH'].includes(action.method) && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Mapeo del Body para la Acción
+                              </label>
+                              <p className="text-xs text-gray-500 mb-2">
+                              Define qué campos se envían al endpoint. Puedes usar <code className="bg-gray-200 px-1 rounded">response.campo</code>, <code className="bg-gray-200 px-1 rounded">data.campo</code> o <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code>.
+                            </p>
+                              {action.bodyMapEntries.length === 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newActions = [...postResponseActions];
+                                    newActions[actionIndex].bodyMapEntries.push({ key: '', value: '' });
+                                    setPostResponseActions(newActions);
+                                  }}
+                                  className="text-sm text-indigo-600 hover:text-indigo-700"
+                                >
+                                  + Agregar Campo
+                                </button>
+                              ) : (
+                                <div className="space-y-2">
+                                  {action.bodyMapEntries.map((entry, index) => (
+                                    <div key={index} className="flex items-center space-x-2">
+                                      <input
+                                        type="text"
+                                        value={entry.key}
+                                        onChange={(e) => {
+                                          const newActions = [...postResponseActions];
+                                          newActions[actionIndex].bodyMapEntries[index].key = e.target.value;
+                                          setPostResponseActions(newActions);
+                                        }}
+                                        placeholder="Campo en el endpoint"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                      />
+                                      <span className="text-gray-500">→</span>
+                                      <input
+                                        type="text"
+                                        value={entry.value}
+                                        onChange={(e) => {
+                                          const newActions = [...postResponseActions];
+                                          newActions[actionIndex].bodyMapEntries[index].value = e.target.value;
+                                          setPostResponseActions(newActions);
+                                        }}
+                                        placeholder="response.id o data.email"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newActions = [...postResponseActions];
+                                          newActions[actionIndex].bodyMapEntries = newActions[actionIndex].bodyMapEntries.filter((_, i) => i !== index);
+                                          setPostResponseActions(newActions);
+                                        }}
+                                        className="text-red-600 hover:text-red-700 px-2"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newActions = [...postResponseActions];
+                                      newActions[actionIndex].bodyMapEntries.push({ key: '', value: '' });
+                                      setPostResponseActions(newActions);
+                                    }}
+                                    className="text-sm text-indigo-600 hover:text-indigo-700"
+                                  >
+                                    + Agregar Campo
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Headers de la Acción */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Headers de la Acción
+                            </label>
+                            {action.headerEntries.length === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newActions = [...postResponseActions];
+                                  newActions[actionIndex].headerEntries.push({ key: '', value: '' });
+                                  setPostResponseActions(newActions);
+                                }}
+                                className="text-sm text-indigo-600 hover:text-indigo-700"
+                              >
+                                + Agregar Header
+                              </button>
+                            ) : (
+                              <div className="space-y-2">
+                                {action.headerEntries.map((entry, index) => (
+                                  <div key={index} className="flex items-center space-x-2">
+                                    <input
+                                      type="text"
+                                      value={entry.key}
+                                      onChange={(e) => {
+                                        const newActions = [...postResponseActions];
+                                        newActions[actionIndex].headerEntries[index].key = e.target.value;
+                                        setPostResponseActions(newActions);
+                                      }}
+                                      placeholder="Nombre del header (ej: Authorization)"
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    />
+                                    <span className="text-gray-500">:</span>
+                                    <input
+                                      type="text"
+                                      value={entry.value}
+                                      onChange={(e) => {
+                                        const newActions = [...postResponseActions];
+                                        newActions[actionIndex].headerEntries[index].value = e.target.value;
+                                        setPostResponseActions(newActions);
+                                      }}
+                                      placeholder="Valor (ej: Bearer token123)"
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newActions = [...postResponseActions];
+                                        newActions[actionIndex].headerEntries = newActions[actionIndex].headerEntries.filter((_, i) => i !== index);
+                                        setPostResponseActions(newActions);
+                                      }}
+                                      className="text-red-600 hover:text-red-700 px-2"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newActions = [...postResponseActions];
+                                    newActions[actionIndex].headerEntries.push({ key: '', value: '' });
+                                    setPostResponseActions(newActions);
+                                  }}
+                                  className="text-sm text-indigo-600 hover:text-indigo-700"
+                                >
+                                  + Agregar Header
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <Lightbulb className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">Información</h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Las acciones se ejecutan después de recibir la respuesta del endpoint destino</li>
+                          <li>Puedes usar <code className="bg-blue-100 px-1 rounded">response.campo</code> para acceder a datos de la respuesta del destino</li>
+                          <li>Puedes usar <code className="bg-blue-100 px-1 rounded">data.campo</code> para acceder a datos del webhook original</li>
+                          <li>Puedes usar <code className="bg-blue-100 px-1 rounded">prev.nombreEndpoint.campo</code> para acceder a datos de llamadas previas</li>
+                          <li>Las acciones se ejecutan secuencialmente en el orden configurado</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

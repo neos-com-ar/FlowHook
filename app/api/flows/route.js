@@ -223,6 +223,34 @@ export async function POST(request) {
       );
     }
 
+    // Validar acciones post-respuesta si están configuradas
+    if (body.postResponseActions && Array.isArray(body.postResponseActions)) {
+      for (const action of body.postResponseActions) {
+        if (action.url) {
+          try {
+            new URL(action.url);
+          } catch {
+            return NextResponse.json(
+              { error: `Invalid post-response action URL: ${action.name || 'unnamed'}` },
+              { status: 400 }
+            );
+          }
+        }
+        
+        // Validar método HTTP de la acción
+        if (action.method) {
+          const actionMethod = action.method.toUpperCase();
+          const allowedActionMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+          if (!allowedActionMethods.includes(actionMethod)) {
+            return NextResponse.json(
+              { error: `Invalid post-response action HTTP method for ${action.name || 'unnamed'}. Allowed methods: GET, POST, PUT, PATCH, DELETE` },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
@@ -234,6 +262,7 @@ export async function POST(request) {
       erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
       conditions: body.conditions && Array.isArray(body.conditions) && body.conditions.length > 0 ? body.conditions : undefined,
       conditionFailureAction: body.conditionFailureAction || undefined,
+      postResponseActions: body.postResponseActions && Array.isArray(body.postResponseActions) && body.postResponseActions.length > 0 ? body.postResponseActions : undefined,
       ownerId: userId,
     };
 
@@ -342,6 +371,7 @@ export async function PUT(request) {
       erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad
       conditions: originalFlow.conditions ? originalFlow.conditions.map(c => ({ ...c })) : undefined,
       conditionFailureAction: originalFlow.conditionFailureAction || undefined,
+      postResponseActions: originalFlow.postResponseActions ? originalFlow.postResponseActions.map(a => ({ ...a })) : undefined,
       ownerId: userId,
     };
 

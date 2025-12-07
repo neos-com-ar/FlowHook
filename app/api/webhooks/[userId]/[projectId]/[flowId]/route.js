@@ -415,6 +415,43 @@ export async function POST(request, { params }) {
         responseData: response.data || null, // Incluir la respuesta real del endpoint destino
       };
 
+      // Ejecutar acciones post-respuesta si están configuradas
+      const postResponseActionsResults = [];
+      if (flow.postResponseActions && Array.isArray(flow.postResponseActions) && flow.postResponseActions.length > 0) {
+        // Crear contexto de datos combinado para las acciones
+        const actionContext = {
+          response: response.data || {}, // Datos de la respuesta del endpoint destino
+          data: body, // Datos originales del webhook
+          prev: prevData, // Datos de endpoints previos
+        };
+
+        // Ejecutar acciones secuencialmente
+        for (const action of flow.postResponseActions) {
+          // Verificar si debe ejecutarse (solo en éxito o siempre)
+          if (action.onlyOnSuccess !== false) {
+            // Solo ejecutar si el destino fue exitoso (ya estamos en el bloque try, así que fue exitoso)
+            try {
+              const actionResult = await executePostResponseAction(action, actionContext);
+              postResponseActionsResults.push(actionResult);
+            } catch (actionError) {
+              const errorResult = {
+                name: action.name || 'unnamed',
+                success: false,
+                error: actionError.message,
+                status: actionError.response?.status || 500,
+                data: actionError.response?.data || null,
+              };
+              postResponseActionsResults.push(errorResult);
+              
+              // Si es requerida, registrar el error pero continuar
+              if (action.required) {
+                console.error(`Error en acción post-respuesta requerida [${action.name || 'unnamed'}]:`, actionError);
+              }
+            }
+          }
+        }
+      }
+
       // Guardar el webhook en el historial
       await saveWebhook(userId, flowId, {
         incomingData: body,
@@ -422,6 +459,7 @@ export async function POST(request, { params }) {
         mappedData,
         headers, // Incluir los headers enviados
         result: webhookResult,
+        postResponseActions: postResponseActionsResults.length > 0 ? postResponseActionsResults : undefined,
         flowName: flow.name,
         destino: flow.destino,
         method: flow.method || 'POST',
@@ -457,6 +495,41 @@ export async function POST(request, { params }) {
         responseTime,
       };
 
+      // Ejecutar acciones post-respuesta incluso si el destino falló (si están configuradas para ejecutarse siempre)
+      const postResponseActionsResults = [];
+      if (flow.postResponseActions && Array.isArray(flow.postResponseActions) && flow.postResponseActions.length > 0) {
+        // Crear contexto de datos combinado para las acciones (sin response porque falló)
+        const actionContext = {
+          response: {}, // No hay respuesta porque falló
+          data: body, // Datos originales del webhook
+          prev: prevData, // Datos de endpoints previos
+        };
+
+        // Ejecutar acciones que no requieren éxito
+        for (const action of flow.postResponseActions) {
+          // Solo ejecutar si está configurada para ejecutarse siempre (onlyOnSuccess === false)
+          if (action.onlyOnSuccess === false) {
+            try {
+              const actionResult = await executePostResponseAction(action, actionContext);
+              postResponseActionsResults.push(actionResult);
+            } catch (actionError) {
+              const errorResult = {
+                name: action.name || 'unnamed',
+                success: false,
+                error: actionError.message,
+                status: actionError.response?.status || 500,
+                data: actionError.response?.data || null,
+              };
+              postResponseActionsResults.push(errorResult);
+              
+              if (action.required) {
+                console.error(`Error en acción post-respuesta requerida [${action.name || 'unnamed'}]:`, actionError);
+              }
+            }
+          }
+        }
+      }
+
       // Guardar el webhook en el historial incluso si falló
       await saveWebhook(userId, flowId, {
         incomingData: body,
@@ -464,6 +537,7 @@ export async function POST(request, { params }) {
         mappedData,
         headers, // Incluir los headers enviados
         result: webhookResult,
+        postResponseActions: postResponseActionsResults.length > 0 ? postResponseActionsResults : undefined,
         flowName: flow.name,
         destino: flow.destino,
         method: flow.method || 'POST',
@@ -650,6 +724,109 @@ function evaluateConditions(conditions, data) {
   }
 
   return result;
+}
+
+// Función para ejecutar una acción post-respuesta
+async function executePostResponseAction(action, context) {
+  // Construir la URL con templates
+  let actionUrl = action.url;
+  actionUrl = processUrlTemplate(actionUrl, context);
+  
+  // Construir el body o query params según el método
+  const method = (action.method || 'POST').toUpperCase();
+  let requestBody = {};
+  let queryParams = {};
+  
+  if (action.bodyMap && typeof action.bodyMap === 'object') {
+    // Si hay bodyMap, usar esos mapeos
+    for (const [actionKey, sourceKey] of Object.entries(action.bodyMap)) {
+      if (sourceKey && sourceKey.trim() !== '') {
+        if (sourceKey.startsWith('literal:')) {
+          // Extraer el valor literal (todo después de "literal:")
+          let literalValue = sourceKey.substring(8).trim();
+          
+          // Procesar templates (reemplazar {{ruta}} con valores del contexto)
+          literalValue = processTemplate(literalValue, context);
+          
+          // Intentar parsear como JSON, si falla usar como string
+          let parsedValue;
+          try {
+            // Si el valor parece un JSON (objeto o array), parsearlo
+            if ((literalValue.startsWith('{') && literalValue.endsWith('}')) ||
+                (literalValue.startsWith('[') && literalValue.endsWith(']'))) {
+              parsedValue = JSON.parse(literalValue);
+            } else if (literalValue === 'true' || literalValue === 'false') {
+              // Valores booleanos
+              parsedValue = literalValue === 'true';
+            } else if (literalValue === 'null') {
+              // Valor null
+              parsedValue = null;
+            } else if (!isNaN(literalValue) && literalValue.trim() !== '') {
+              // Números
+              parsedValue = Number(literalValue);
+            } else {
+              // Strings - remover comillas si están presentes
+              if ((literalValue.startsWith('"') && literalValue.endsWith('"')) ||
+                  (literalValue.startsWith("'") && literalValue.endsWith("'"))) {
+                parsedValue = literalValue.slice(1, -1);
+              } else {
+                parsedValue = literalValue;
+              }
+            }
+          } catch (parseError) {
+            // Si falla el parsing, usar el valor como string
+            console.warn(`Error parsing literal value for ${actionKey}:`, parseError);
+            parsedValue = literalValue;
+          }
+          
+          // Para GET/DELETE, los literales van como query params si no están en la URL
+          if (['GET', 'DELETE'].includes(method)) {
+            queryParams[actionKey] = parsedValue;
+          } else {
+            requestBody[actionKey] = parsedValue;
+          }
+        } else {
+          const value = getNestedValue(context, sourceKey);
+          if (value !== undefined) {
+            // Para GET/DELETE, los valores van como query params si no están en la URL
+            if (['GET', 'DELETE'].includes(method)) {
+              queryParams[actionKey] = value;
+            } else {
+              requestBody[actionKey] = value;
+            }
+          }
+        }
+      }
+    }
+  } else if (!['GET', 'DELETE'].includes(method)) {
+    // Si no hay mapeo específico y no es GET/DELETE, no enviar body por defecto
+    // (las acciones deben tener bodyMap explícito)
+  }
+  
+  // Construir headers
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (action.headers && typeof action.headers === 'object') {
+    Object.assign(headers, action.headers);
+  }
+  
+  // Realizar la petición
+  const response = await axios({
+    method: method.toLowerCase(),
+    url: actionUrl,
+    data: ['POST', 'PUT', 'PATCH'].includes(method) && Object.keys(requestBody).length > 0 ? requestBody : undefined,
+    params: ['GET', 'DELETE'].includes(method) && Object.keys(queryParams).length > 0 ? queryParams : undefined,
+    headers,
+    timeout: 30000,
+  });
+  
+  return {
+    name: action.name || 'unnamed',
+    success: true,
+    status: response.status,
+    data: response.data || null,
+  };
 }
 
 // Solo permitir método POST
