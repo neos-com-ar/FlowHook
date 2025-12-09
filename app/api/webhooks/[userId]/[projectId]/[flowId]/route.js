@@ -266,6 +266,11 @@ export async function POST(request, { params }) {
 
     // PASO 3: Aplicar el mapeo de datos (ahora puede incluir datos de endpoints previos)
     const mappedData = {};
+    
+    // Log para debugging: verificar que combinedData tiene los datos correctos
+    console.log('🔍 [DEBUG] combinedData keys:', Object.keys(combinedData));
+    console.log('🔍 [DEBUG] combinedData.data keys:', combinedData.data ? Object.keys(combinedData.data) : 'data is null/undefined');
+    
     if (flow.map && typeof flow.map === 'object') {
       for (const [destKey, sourceKey] of Object.entries(flow.map)) {
         // Si el sourceKey está vacío o es solo un punto, omitir este campo
@@ -339,6 +344,10 @@ export async function POST(request, { params }) {
           
           // Soporte para rutas anidadas con notación de punto
           let value = getNestedValue(combinedData, cleanSourceKey);
+          // Log para debugging: verificar valores encontrados
+          if (value === undefined) {
+            console.log(`⚠️ [DEBUG] Valor no encontrado para ${destKey} desde ${cleanSourceKey}`);
+          }
           if (value !== undefined) {
             // Aplicar mapeo de valores si existe
             if (valueMapping && valueMapping[value] !== undefined) {
@@ -368,6 +377,10 @@ export async function POST(request, { params }) {
       // Si no hay mapeo, enviar todos los datos (incluyendo datos de endpoints previos si existen)
       Object.assign(mappedData, combinedData);
     }
+
+    // Log para debugging: verificar mappedData resultante
+    console.log('🔍 [DEBUG] mappedData keys:', Object.keys(mappedData));
+    console.log('🔍 [DEBUG] mappedData sample:', JSON.stringify(mappedData).substring(0, 200));
 
     // Reenviar los datos al destino
     let webhookResult = {
