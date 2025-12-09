@@ -379,6 +379,17 @@ export async function POST(request, { params }) {
     };
     const startTime = Date.now();
 
+    // Construir headers: combinar headers personalizados con Content-Type por defecto
+    // Definir antes del try para que esté disponible en el catch
+    const headers = {
+      'Content-Type': 'application/json', // Por defecto
+    };
+    
+    // Agregar headers personalizados del flujo (pueden sobrescribir Content-Type si se especifica)
+    if (flow.headers && typeof flow.headers === 'object') {
+      Object.assign(headers, flow.headers);
+    }
+
     try {
       // Obtener el método HTTP del flujo (default POST para retrocompatibilidad)
       const httpMethod = (flow.method || 'POST').toUpperCase();
@@ -386,16 +397,6 @@ export async function POST(request, { params }) {
       // Validar que el método sea uno de los permitidos
       const allowedMethods = ['POST', 'PUT', 'PATCH'];
       const method = allowedMethods.includes(httpMethod) ? httpMethod.toLowerCase() : 'post';
-      
-      // Construir headers: combinar headers personalizados con Content-Type por defecto
-      const headers = {
-        'Content-Type': 'application/json', // Por defecto
-      };
-      
-      // Agregar headers personalizados del flujo (pueden sobrescribir Content-Type si se especifica)
-      if (flow.headers && typeof flow.headers === 'object') {
-        Object.assign(headers, flow.headers);
-      }
       
       // Realizar la petición con el método seleccionado
       const response = await axios({
