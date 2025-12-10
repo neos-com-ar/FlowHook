@@ -1662,6 +1662,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-4 mb-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Guía de Mapeo:</h4>
                   <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                    <li>Para mapear un campo normal, usa <code className="bg-gray-200 px-1 rounded">data.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">data.nombreCompleto</code>)</li>
                     <li>Para valores fijos, usa <code className="bg-gray-200 px-1 rounded">literal:valor</code></li>
                     <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
                     <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>

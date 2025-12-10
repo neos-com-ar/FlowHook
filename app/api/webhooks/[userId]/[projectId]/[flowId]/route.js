@@ -347,6 +347,12 @@ export async function POST(request, { params }) {
           // Log para debugging: verificar valores encontrados
           if (value === undefined) {
             console.log(`⚠️ [DEBUG] Valor no encontrado para ${destKey} desde ${cleanSourceKey}`);
+            console.log(`   - combinedData tiene keys:`, Object.keys(combinedData));
+            if (combinedData.data) {
+              console.log(`   - combinedData.data tiene keys:`, Object.keys(combinedData.data));
+            }
+          } else {
+            console.log(`✅ [DEBUG] Valor encontrado para ${destKey}:`, typeof value === 'object' ? JSON.stringify(value).substring(0, 100) : value);
           }
           if (value !== undefined) {
             // Aplicar mapeo de valores si existe
