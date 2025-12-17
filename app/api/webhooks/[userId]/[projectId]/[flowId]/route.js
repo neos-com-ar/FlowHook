@@ -283,6 +283,59 @@ export async function POST(request, { params }) {
           // Extraer el valor literal (todo después de "literal:")
           let literalValue = sourceKey.substring(8).trim();
           
+          // Detectar si el literal contiene templates con índices de array [0] que deberían iterarse
+          // Ejemplo: si contiene {{data.lineasPedido[0].producto...}} y data.lineasPedido es un array,
+          // iterar sobre todos los elementos reemplazando [0] con [index]
+          const arrayIndexPattern = /\{\{([^}]+)\[0\]([^}]*)\}\}/g;
+          const matches = [...literalValue.matchAll(arrayIndexPattern)];
+          
+          if (matches.length > 0 && literalValue.trim().startsWith('[')) {
+            // Extraer la ruta base del array del primer match
+            // El patrón regex captura: {{rutaBase[0].resto}}
+            // firstMatch[1] = rutaBase (ej: "data.data.lineasPedido")
+            // firstMatch[2] = resto después de [0] (ej: ".producto.codigoProducto")
+            const firstMatch = matches[0];
+            const arrayBasePath = firstMatch[1].trim(); // Ya es la ruta base del array
+            
+            if (arrayBasePath) {
+              const arrayValue = getNestedValue(combinedData, arrayBasePath);
+              
+              // Si encontramos un array, iterar sobre cada elemento
+              if (Array.isArray(arrayValue) && arrayValue.length > 0) {
+                try {
+                  // Iterar sobre cada elemento del array fuente
+                  const mappedArray = arrayValue.map((item, index) => {
+                    // Reemplazar todos los [0] con el índice actual en el template
+                    let itemTemplate = literalValue.replace(/\[0\]/g, `[${index}]`);
+                    
+                    // Procesar el template con el contexto actualizado
+                    const processedTemplate = processTemplate(itemTemplate, combinedData);
+                    
+                    try {
+                      const parsed = JSON.parse(processedTemplate);
+                      // Si el template es un array con un objeto, tomar el primer elemento
+                      if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed[0];
+                      }
+                      return parsed;
+                    } catch (e) {
+                      console.warn(`Error parsing iterated template for ${destKey}[${index}]:`, e);
+                      return null;
+                    }
+                  }).filter(item => item !== null);
+                  
+                  if (mappedArray.length > 0) {
+                    mappedData[destKey] = mappedArray;
+                    continue; // Saltar al siguiente campo
+                  }
+                } catch (e) {
+                  // Si falla la iteración, continuar con el procesamiento normal
+                  console.warn(`Error iterating array for ${destKey}, using normal processing:`, e);
+                }
+              }
+            }
+          }
+          
           // Procesar templates (reemplazar {{ruta}} con valores del webhook o endpoints previos)
           literalValue = processTemplate(literalValue, combinedData);
           
@@ -342,8 +395,27 @@ export async function POST(request, { params }) {
             }
           }
           
-          // Soporte para rutas anidadas con notación de punto
-          let value = getNestedValue(combinedData, cleanSourceKey);
+          // Soporte para mapeo de arrays completos: detectar si la ruta termina con [] o apunta a un array
+          // Ejemplo: "data.lineasPedido[]" o "data.lineasPedido" cuando el valor es un array
+          let isArrayMapping = false;
+          let arraySourceKey = cleanSourceKey;
+          
+          // Detectar sintaxis especial para arrays: ruta[]
+          if (cleanSourceKey.endsWith('[]')) {
+            isArrayMapping = true;
+            arraySourceKey = cleanSourceKey.slice(0, -2); // Remover el []
+          }
+          
+          // Obtener el valor de la fuente
+          let value = getNestedValue(combinedData, arraySourceKey);
+          
+          // Si el valor es un array y no se detectó explícitamente el mapeo de array,
+          // pero el cleanSourceKey original no tenía [], verificar si debería ser array
+          if (!isArrayMapping && Array.isArray(value)) {
+            // Si el valor es un array, asignarlo directamente (mapeo automático de arrays)
+            isArrayMapping = true;
+          }
+          
           // Log para debugging: verificar valores encontrados
           if (value === undefined) {
             console.log(`⚠️ [DEBUG] Valor no encontrado para ${destKey} desde ${cleanSourceKey}`);
@@ -353,10 +425,17 @@ export async function POST(request, { params }) {
             }
           } else {
             console.log(`✅ [DEBUG] Valor encontrado para ${destKey}:`, typeof value === 'object' ? JSON.stringify(value).substring(0, 100) : value);
+            if (isArrayMapping) {
+              console.log(`📦 [DEBUG] Mapeo de array detectado para ${destKey}, elementos: ${Array.isArray(value) ? value.length : 0}`);
+            }
           }
+          
           if (value !== undefined) {
-            // Aplicar mapeo de valores si existe
-            if (valueMapping && valueMapping[value] !== undefined) {
+            // Si es mapeo de array, asignar el array completo
+            if (isArrayMapping && Array.isArray(value)) {
+              mappedData[destKey] = value;
+            } else if (valueMapping && valueMapping[value] !== undefined) {
+              // Aplicar mapeo de valores si existe
               mappedData[destKey] = valueMapping[value];
             } else {
               // Soporte para transformaciones: convertir a número si el destino lo requiere
@@ -589,15 +668,85 @@ export async function POST(request, { params }) {
 }
 
 // Función auxiliar para obtener valores anidados
+// Soporta índices de array usando la notación [0], [1], etc.
+// Ejemplo: "data.lineasPedido[0].producto.codigoProducto"
 function getNestedValue(obj, path) {
-  const keys = path.split('.');
+  if (!path || path.trim() === '') {
+    return obj;
+  }
+  
+  // Dividir la ruta considerando tanto puntos como índices de array
+  // Patrón: captura nombres de propiedades y índices [número]
+  const parts = [];
+  let current = '';
+  let i = 0;
+  
+  while (i < path.length) {
+    if (path[i] === '[') {
+      // Si hay contenido antes del '[', agregarlo como parte
+      if (current.trim() !== '') {
+        parts.push(current.trim());
+        current = '';
+      }
+      // Buscar el índice dentro de los corchetes
+      i++; // Saltar el '['
+      let indexStr = '';
+      while (i < path.length && path[i] !== ']') {
+        indexStr += path[i];
+        i++;
+      }
+      if (i < path.length && path[i] === ']') {
+        i++; // Saltar el ']'
+        const index = parseInt(indexStr.trim(), 10);
+        if (!isNaN(index)) {
+          parts.push(index);
+        } else {
+          // Si no es un número válido, tratar como propiedad
+          parts.push(`[${indexStr}]`);
+        }
+      }
+    } else if (path[i] === '.') {
+      // Si hay contenido antes del punto, agregarlo
+      if (current.trim() !== '') {
+        parts.push(current.trim());
+        current = '';
+      }
+      i++; // Saltar el punto
+    } else {
+      current += path[i];
+      i++;
+    }
+  }
+  
+  // Agregar el último fragmento si existe
+  if (current.trim() !== '') {
+    parts.push(current.trim());
+  }
+  
+  // Si no se encontraron partes, usar el path original dividido por puntos (retrocompatibilidad)
+  if (parts.length === 0) {
+    parts.push(...path.split('.'));
+  }
+  
+  // Navegar por el objeto usando las partes
   let value = obj;
   
-  for (const key of keys) {
+  for (const part of parts) {
     if (value === null || value === undefined) {
       return undefined;
     }
-    value = value[key];
+    
+    // Si part es un número, es un índice de array
+    if (typeof part === 'number') {
+      if (Array.isArray(value)) {
+        value = value[part];
+      } else {
+        return undefined;
+      }
+    } else {
+      // Es una propiedad de objeto
+      value = value[part];
+    }
   }
   
   return value;

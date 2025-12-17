@@ -1667,7 +1667,58 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
                     <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
                     <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
+                    <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.lineasPedido[0].producto.codigoProducto</code>)</li>
                   </ul>
+                  <details className="mt-3">
+                    <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
+                      Ver más ejemplos de arrays
+                    </summary>
+                    <div className="mt-2 p-3 bg-white border border-gray-200 rounded text-xs space-y-2">
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Acceder a elementos de un array:</p>
+                        <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+                          <li>Primer elemento: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[0].producto.codigoProducto</code></li>
+                          <li>Segundo elemento: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[1].cantidad</code></li>
+                          <li>Con transformación: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[0].cantidad::number</code></li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Mapear array completo automáticamente:</p>
+                        <p className="text-gray-600 mb-1">Si la fuente es un array, puedes mapearlo directamente:</p>
+                        <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
+                          <li>Campo destino: <code className="bg-gray-100 px-1 rounded">documentoDetalle</code></li>
+                          <li>Valor fuente: <code className="bg-gray-100 px-1 rounded">data.lineasPedido</code> o <code className="bg-gray-100 px-1 rounded">data.lineasPedido[]</code></li>
+                          <li>El sistema detectará automáticamente que es un array y lo mapeará completo</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Mapear array completo con literal (transformación):</p>
+                        <p className="text-gray-600 mb-1">Para transformar cada elemento, usa un literal:</p>
+                        <p className="text-gray-600 mb-1">Campo destino: <code className="bg-gray-100 px-1 rounded">documentoDetalle</code></p>
+                        <p className="text-gray-600 mb-1">Valor fuente:</p>
+                        <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
+{`literal:[
+  {
+    "idItem": "{{data.lineasPedido[0].producto.codigoProducto}}",
+    "descripcion": "{{data.lineasPedido[0].producto.nombre}}",
+    "cantidad": {{data.lineasPedido[0].cantidad}},
+    "precioUnitario": {{data.lineasPedido[0].precioUnitario}}
+  }
+]`}
+                        </pre>
+                        <p className="text-gray-500 text-xs mt-1">Nota: Este ejemplo mapea solo el primer elemento. Para todos los elementos, usa el mapeo automático o itera en el literal.</p>
+                      </div>
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                        <p className="font-medium text-yellow-800 mb-1">⚠️ Errores comunes:</p>
+                        <ul className="list-disc list-inside text-yellow-700 space-y-1 text-xs">
+                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido.producto</code> (falta el índice [0])</li>
+                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0].producto</code> (correcto)</li>
+                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0]producto</code> (falta el punto)</li>
+                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0].producto</code> (correcto)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </details>
                 </div>
 
             {mappingEntries.length === 0 ? (
@@ -1691,9 +1742,9 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                           type="text"
                           value={entry.src}
                           onChange={(e) => handleMappingChange(index, 'src', e.target.value)}
-                          placeholder='data.nombre o data.categoria::map{OBR:1} o literal:valor'
+                          placeholder='data.nombre o data.array[0].campo o literal:valor'
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono text-xs"
-                          title='Campo del webhook. Usa ::map{key:val} para mapear valores. Usa ::number para convertir a número. Usa literal:valor para valores fijos.'
+                          title='Campo del webhook. Usa data.array[0].campo para arrays. Usa ::map{key:val} para mapear valores. Usa ::number para convertir a número. Usa literal:valor para valores fijos.'
                         />
                         <button
                           type="button"
