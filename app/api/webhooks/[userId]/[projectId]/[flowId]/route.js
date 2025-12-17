@@ -72,10 +72,12 @@ export async function POST(request, { params }) {
       const prevPromises = prevEndpoints.map(async (prevEndpoint, index) => {
         if (!prevEndpoint.url) return null;
         
+        // Declarar variables fuera del try para que estén disponibles en el catch
+        let prevUrl = prevEndpoint.url;
+        const prevMethod = (prevEndpoint.method || 'GET').toUpperCase();
+        
         try {
           // Construir la URL del endpoint previo con posibles parámetros del webhook
-          let prevUrl = prevEndpoint.url;
-          
           // Reemplazar placeholders en la URL con datos del webhook
           // Ejemplo: https://api.com/clientes/{{email}} -> https://api.com/clientes/juan@example.com
           // Para URLs, usar processUrlTemplate que no agrega comillas a los valores
@@ -84,8 +86,6 @@ export async function POST(request, { params }) {
           // Construir el body para la llamada al endpoint previo si está configurado
           let prevRequestBody = {};
           let prevQueryParams = {};
-          
-          const prevMethod = (prevEndpoint.method || 'GET').toUpperCase();
           
           if (prevEndpoint.bodyMap && typeof prevEndpoint.bodyMap === 'object') {
             // Si hay bodyMap, usar esos mapeos
