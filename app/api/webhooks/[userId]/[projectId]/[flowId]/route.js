@@ -1047,8 +1047,31 @@ function findMatchingParenthesis(str, startIndex) {
  * // - Se extrae el campo especificado (ej: .id) del resultado
  */
 async function processTemplateAsync(template, webhookData, prevEndpoints) {
-  // Detectar y procesar prev.nombreEndpoint({{valor}})
-  // Buscar todas las ocurrencias de prev.nombreEndpoint(
+  // Detectar y procesar prev.nombreEndpoint({{valor}}) O prev.nombreEndpoint[index]
+  // Primero buscar prev.nombreEndpoint[index] dentro de arrays (sintaxis antigua que debemos convertir a dinámica)
+  // Patrón: prev.nombreEndpoint[0] o prev.nombreEndpoint[index]
+  const prevActionIndexPattern = /prev\.([a-zA-Z0-9_]+)\[(\d+)\]/g;
+  const indexMatches = [];
+  let indexMatch;
+  
+  // Buscar todas las ocurrencias de prev.nombreEndpoint[index]
+  while ((indexMatch = prevActionIndexPattern.exec(template)) !== null) {
+    const endpointName = indexMatch[1];
+    const arrayIndex = parseInt(indexMatch[2], 10);
+    
+    // Si el índice es 0, es probable que sea dentro de un array literal que se está iterando
+    // Necesitamos encontrar el valor del array fuente para este índice específico
+    // Por ahora, marcamos esto para procesarlo después
+    indexMatches.push({
+      fullMatch: indexMatch[0],
+      endpointName,
+      arrayIndex,
+      startIndex: indexMatch.index,
+      endIndex: indexMatch.index + indexMatch[0].length
+    });
+  }
+  
+  // Buscar todas las ocurrencias de prev.nombreEndpoint({{valor}})
   const prevActionPattern = /prev\.([a-zA-Z0-9_]+)\(/g;
   const matches = [];
   let match;
@@ -1089,6 +1112,72 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
         startIndex,
         endIndex
       });
+    }
+  }
+  
+  // Procesar también prev.nombreEndpoint[index] si está dentro de un array literal
+  // Esto es para compatibilidad con sintaxis como prev.getProducto[0].data.idItem
+  for (const indexMatch of indexMatches) {
+    const { fullMatch, endpointName, arrayIndex, startIndex, endIndex } = indexMatch;
+    
+    // Buscar si hay un campo después del [index] (ej: .data.idItem)
+    const afterIndex = template.substring(endIndex);
+    const fieldPattern = /^\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)/;
+    const fieldMatch = afterIndex.match(fieldPattern);
+    
+    let fieldPath = null;
+    let finalEndIndex = endIndex;
+    
+    if (fieldMatch) {
+      fieldPath = fieldMatch[1]; // ej: "data.idItem"
+      finalEndIndex = endIndex + fieldMatch[0].length;
+    }
+    
+    // Si el índice es 0, estamos dentro de un array literal que se está iterando
+    // Necesitamos encontrar el valor del array fuente para ejecutar la acción previa dinámicamente
+    // Por ahora, intentamos encontrar el array fuente en el contexto
+    // El array fuente debería estar en webhookData.data.data.lineasPedido (o similar)
+    
+    // Buscar la acción previa configurada para obtener la URL y extraer el parámetro esperado
+    const prevEndpoint = prevEndpoints.find(ep => {
+      const epName = ep.name || `endpoint${prevEndpoints.indexOf(ep) + 1}`;
+      return epName === endpointName;
+    });
+    
+    if (prevEndpoint && prevEndpoint.url) {
+      // Extraer el nombre del parámetro de la URL (ej: {{codigoProducto}} -> codigoProducto)
+      const urlParamMatch = prevEndpoint.url.match(/\{\{([^}]+)\}\}/);
+      if (urlParamMatch) {
+        const paramName = urlParamMatch[1].trim();
+        // Buscar el array fuente en el contexto usando el nombre del parámetro como guía
+        // Si el parámetro es "data.data.lineaspedido[0].producto.codigoProducto", 
+        // el array fuente es "data.data.lineaspedido"
+        const arrayPathMatch = paramName.match(/^(.+?)\[0\]/);
+        if (arrayPathMatch) {
+          const arrayBasePath = arrayPathMatch[1];
+          const arrayValue = getNestedValue(webhookData, arrayBasePath);
+          
+          if (Array.isArray(arrayValue) && arrayValue.length > arrayIndex) {
+            // Construir la ruta completa del parámetro para este índice
+            const paramPath = paramName.replace(/\[0\]/, `[${arrayIndex}]`);
+            const paramValue = getNestedValue(webhookData, paramPath);
+            
+            if (paramValue !== undefined && paramValue !== null) {
+              const fullMatchWithField = template.substring(startIndex, finalEndIndex);
+              matches.push({
+                fullMatch: fullMatchWithField,
+                endpointName,
+                innerContent: `{{${paramPath}}}`, // Usar la ruta completa con el índice correcto
+                fieldPath,
+                startIndex,
+                endIndex: finalEndIndex
+              });
+            } else {
+              console.warn(`[Dynamic prev action] No se pudo obtener el valor del parámetro "${paramPath}" para ${endpointName}[${arrayIndex}]`);
+            }
+          }
+        }
+      }
     }
   }
   
