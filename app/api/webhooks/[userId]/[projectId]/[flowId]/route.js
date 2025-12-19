@@ -59,6 +59,9 @@ export async function POST(request, { params }) {
     // Obtener el body del webhook
     const body = await request.json();
 
+    // Limpiar cache de acciones previas dinámicas para este request
+    dynamicPrevActionCache.clear();
+
     // PASO 1: Si el flujo tiene endpoints previos, hacer las llamadas primero
     let prevData = {};
     
@@ -284,7 +287,7 @@ export async function POST(request, { params }) {
           let literalValue = sourceKey.substring(8).trim();
           
           // Detectar si el literal contiene templates con índices de array [0] que deberían iterarse
-          // Ejemplo: si contiene {{data.lineasPedido[0].producto...}} y data.lineasPedido es un array,
+          // Ejemplo: si contiene {{data.items[0].campo...}} y data.items es un array,
           // iterar sobre todos los elementos reemplazando [0] con [index]
           const arrayIndexPattern = /\{\{([^}]+)\[0\]([^}]*)\}\}/g;
           const matches = [...literalValue.matchAll(arrayIndexPattern)];
@@ -292,8 +295,8 @@ export async function POST(request, { params }) {
           if (matches.length > 0 && literalValue.trim().startsWith('[')) {
             // Extraer la ruta base del array del primer match
             // El patrón regex captura: {{rutaBase[0].resto}}
-            // firstMatch[1] = rutaBase (ej: "data.data.lineasPedido")
-            // firstMatch[2] = resto después de [0] (ej: ".producto.codigoProducto")
+            // firstMatch[1] = rutaBase (ej: "data.data.items")
+            // firstMatch[2] = resto después de [0] (ej: ".campo")
             const firstMatch = matches[0];
             const arrayBasePath = firstMatch[1].trim(); // Ya es la ruta base del array
             
@@ -303,13 +306,23 @@ export async function POST(request, { params }) {
               // Si encontramos un array, iterar sobre cada elemento
               if (Array.isArray(arrayValue) && arrayValue.length > 0) {
                 try {
-                  // Iterar sobre cada elemento del array fuente
-                  const mappedArray = arrayValue.map((item, index) => {
+                  // Obtener prevEndpoints para acciones previas dinámicas
+                  const prevEndpoints = Array.isArray(flow.erpEndpoints) 
+                    ? flow.erpEndpoints 
+                    : (flow.erpEndpoint ? [flow.erpEndpoint] : []);
+                  
+                  // Iterar sobre cada elemento del array fuente (ahora asíncrono)
+                  const mappedArrayPromises = arrayValue.map(async (item, index) => {
                     // Reemplazar todos los [0] con el índice actual en el template
                     let itemTemplate = literalValue.replace(/\[0\]/g, `[${index}]`);
                     
-                    // Procesar el template con el contexto actualizado
-                    const processedTemplate = processTemplate(itemTemplate, combinedData);
+                    console.log(`[Array iteration] Procesando elemento ${index} del array ${arrayBasePath}`);
+                    console.log(`[Array iteration] Template después de reemplazar [0]:`, itemTemplate.substring(0, 200));
+                    
+                    // Procesar el template con el contexto actualizado (puede incluir acciones previas dinámicas)
+                    const processedTemplate = await processTemplateAsync(itemTemplate, combinedData, prevEndpoints);
+                    
+                    console.log(`[Array iteration] Template procesado para elemento ${index}:`, processedTemplate.substring(0, 200));
                     
                     try {
                       const parsed = JSON.parse(processedTemplate);
@@ -322,7 +335,10 @@ export async function POST(request, { params }) {
                       console.warn(`Error parsing iterated template for ${destKey}[${index}]:`, e);
                       return null;
                     }
-                  }).filter(item => item !== null);
+                  });
+                  
+                  // Esperar todas las promesas
+                  const mappedArray = (await Promise.all(mappedArrayPromises)).filter(item => item !== null);
                   
                   if (mappedArray.length > 0) {
                     mappedData[destKey] = mappedArray;
@@ -396,7 +412,7 @@ export async function POST(request, { params }) {
           }
           
           // Soporte para mapeo de arrays completos: detectar si la ruta termina con [] o apunta a un array
-          // Ejemplo: "data.lineasPedido[]" o "data.lineasPedido" cuando el valor es un array
+          // Ejemplo: "data.items[]" o "data.items" cuando el valor es un array
           let isArrayMapping = false;
           let arraySourceKey = cleanSourceKey;
           
@@ -669,7 +685,7 @@ export async function POST(request, { params }) {
 
 // Función auxiliar para obtener valores anidados
 // Soporta índices de array usando la notación [0], [1], etc.
-// Ejemplo: "data.lineasPedido[0].producto.codigoProducto"
+// Ejemplo: "data.items[0].campo"
 function getNestedValue(obj, path) {
   if (!path || path.trim() === '') {
     return obj;
@@ -752,6 +768,148 @@ function getNestedValue(obj, path) {
   return value;
 }
 
+/**
+ * Cache para almacenar resultados de acciones previas dinámicas
+ * Evita llamadas duplicadas cuando el mismo parámetro se usa múltiples veces
+ * Clave: `${endpointName}:${paramValue}`, Valor: resultado de la acción previa
+ * 
+ * Ejemplo: Si dos elementos del array tienen el mismo código de producto "EVEL.01",
+ * solo se hará una llamada GET y ambos elementos usarán el resultado cacheado.
+ */
+const dynamicPrevActionCache = new Map();
+
+/**
+ * Ejecuta una acción previa dinámicamente con un valor específico como parámetro
+ * 
+ * Esta función permite ejecutar acciones previas durante la iteración de arrays,
+ * donde cada elemento necesita obtener datos basados en valores específicos de ese elemento.
+ * 
+ * @param {string} endpointName - Nombre de la acción previa configurada (ej: "obtenerId")
+ * @param {string} paramValue - Valor del parámetro a usar en la URL (ej: "ABC123")
+ * @param {Array} prevEndpoints - Array de endpoints previos configurados
+ * @param {Object} webhookData - Datos del webhook para resolver templates adicionales
+ * @returns {Promise<any>} - Resultado de la acción previa (objeto completo de la respuesta)
+ * 
+ * @example
+ * // Configuración de acción previa:
+ * // - Nombre: "obtenerId"
+ * // - URL: "https://api.ejemplo.com/items/{{codigo}}"
+ * 
+ * // Uso en mapeo:
+ * // prev.obtenerId({{data.data.items[0].codigo}}).id
+ * 
+ * // Ejecución:
+ * // executeDynamicPrevAction("obtenerId", "ABC123", prevEndpoints, webhookData)
+ * // → GET https://api.ejemplo.com/items/ABC123
+ * // → Retorna: {id: 198, nombre: "..."} (objeto completo de la respuesta)
+ */
+async function executeDynamicPrevAction(endpointName, paramValue, prevEndpoints, webhookData) {
+  // Crear clave de cache
+  const cacheKey = `${endpointName}:${paramValue}`;
+  
+  // Verificar cache
+  if (dynamicPrevActionCache.has(cacheKey)) {
+    console.log(`[Cache hit] Acción previa dinámica ${endpointName} con parámetro ${paramValue}`);
+    return dynamicPrevActionCache.get(cacheKey);
+  }
+  
+  // Buscar el endpoint previo por nombre
+  const prevEndpoint = prevEndpoints.find(ep => {
+    const epName = ep.name || `endpoint${prevEndpoints.indexOf(ep) + 1}`;
+    return epName === endpointName;
+  });
+  
+  if (!prevEndpoint) {
+    console.warn(`Endpoint previo "${endpointName}" no encontrado`);
+    return null;
+  }
+  
+  try {
+    // Construir la URL reemplazando el parámetro
+    // El endpoint debe tener {{paramName}} en la URL, lo reemplazamos con el valor
+    let prevUrl = prevEndpoint.url;
+    
+    // Reemplazar cualquier placeholder en la URL con el valor del parámetro
+    // Si la URL tiene {{parametro}}, lo reemplazamos con paramValue
+    prevUrl = prevUrl.replace(/\{\{([^}]+)\}\}/g, (match, placeholder) => {
+      // Si el placeholder coincide con algún campo del webhook, usar ese valor
+      // Si no, usar el paramValue directamente
+      const webhookValue = getNestedValue(webhookData, placeholder.trim());
+      if (webhookValue !== undefined && webhookValue !== null) {
+        return encodeURIComponent(String(webhookValue));
+      }
+      // Usar el paramValue como fallback
+      return encodeURIComponent(String(paramValue));
+    });
+    
+    const prevMethod = (prevEndpoint.method || 'GET').toUpperCase();
+    
+    // Construir query params o body según el método
+    let prevRequestBody = {};
+    let prevQueryParams = {};
+    
+    if (prevEndpoint.bodyMap && typeof prevEndpoint.bodyMap === 'object') {
+      for (const [prevKey, sourceKey] of Object.entries(prevEndpoint.bodyMap)) {
+        if (sourceKey && sourceKey.trim() !== '') {
+          if (sourceKey.startsWith('literal:')) {
+            const literalValue = processTemplate(sourceKey.substring(8).trim(), webhookData);
+            if (['GET', 'DELETE'].includes(prevMethod)) {
+              prevQueryParams[prevKey] = literalValue;
+            } else {
+              prevRequestBody[prevKey] = literalValue;
+            }
+          } else {
+            const value = getNestedValue(webhookData, sourceKey);
+            if (value !== undefined) {
+              if (['GET', 'DELETE'].includes(prevMethod)) {
+                prevQueryParams[prevKey] = value;
+              } else {
+                prevRequestBody[prevKey] = value;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Realizar la llamada
+    const prevResponse = await axios({
+      method: prevMethod.toLowerCase(),
+      url: prevUrl,
+      data: ['POST', 'PUT', 'PATCH'].includes(prevMethod) ? prevRequestBody : undefined,
+      params: ['GET', 'DELETE'].includes(prevMethod) && Object.keys(prevQueryParams).length > 0 ? prevQueryParams : undefined,
+      headers: prevEndpoint.headers || {
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000,
+    });
+    
+    const responseData = prevResponse.data || {};
+    
+    // Retornar el objeto completo de la respuesta
+    // El campo específico se extraerá cuando se use en el mapeo (ej: prev.obtenerId.id)
+    // Si la respuesta es un valor primitivo (número o string), retornarlo directamente
+    let result = responseData;
+    if (typeof responseData === 'number' || typeof responseData === 'string') {
+      result = responseData;
+    }
+    
+    // Guardar en cache
+    dynamicPrevActionCache.set(cacheKey, result);
+    
+    console.log(`[Cache miss] Acción previa dinámica ${endpointName} con parámetro ${paramValue} → ${result}`);
+    
+    return result;
+  } catch (error) {
+    console.error(`Error ejecutando acción previa dinámica ${endpointName} con parámetro ${paramValue}:`, error.message);
+    // Si no es requerido, retornar null
+    if (!prevEndpoint.required) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 // Función para procesar templates en URLs (reemplaza {{ruta}} con valores del webhook)
 // Esta versión NO agrega comillas a los valores, ya que son para URLs
 function processUrlTemplate(template, webhookData) {
@@ -810,6 +968,206 @@ function processTemplate(template, webhookData) {
   });
   
   return result;
+}
+
+/**
+ * Función auxiliar para encontrar el paréntesis de cierre correspondiente
+ * Maneja correctamente paréntesis anidados y templates {{ }} dentro de los paréntesis
+ * 
+ * @param {string} str - String donde buscar
+ * @param {startIndex} number - Índice donde comienza la búsqueda (después del paréntesis de apertura)
+ * @returns {number} - Índice del paréntesis de cierre correspondiente, o -1 si no se encuentra
+ * 
+ * @example
+ * findMatchingParenthesis("prev.codigo({{data.lineas[0].codigo}})", 15)
+ * // Retorna: 40 (índice del paréntesis de cierre)
+ */
+function findMatchingParenthesis(str, startIndex) {
+  let depth = 0;
+  let braceDepth = 0; // Para contar niveles de {{ }}
+  for (let i = startIndex; i < str.length; i++) {
+    if (str[i] === '{' && i + 1 < str.length && str[i + 1] === '{') {
+      braceDepth++;
+      i++; // Saltar el segundo {
+    } else if (str[i] === '}' && i + 1 < str.length && str[i + 1] === '}') {
+      braceDepth--;
+      i++; // Saltar el segundo }
+    } else if (str[i] === '(' && braceDepth === 0) {
+      depth++;
+    } else if (str[i] === ')' && braceDepth === 0) {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+/**
+ * Función asíncrona para procesar templates que pueden incluir acciones previas dinámicas
+ * 
+ * Detecta y ejecuta sintaxis: prev.nombreEndpoint({{valor}})
+ * 
+ * Esta función permite usar acciones previas dentro de arrays literales, donde cada
+ * elemento del array puede ejecutar una acción previa con valores específicos de ese elemento.
+ * 
+ * @param {string} template - Template a procesar (puede contener prev.nombreEndpoint({{valor}}))
+ * @param {Object} webhookData - Datos del webhook y endpoints previos (combinedData)
+ * @param {Array} prevEndpoints - Array de endpoints previos configurados
+ * @returns {Promise<string>} - Template procesado con valores reemplazados
+ * 
+ * @example
+ * // Template de entrada:
+ * // "prev.obtenerId({{data.data.items[0].codigo}}).id"
+ * 
+ * // Procesamiento:
+ * // 1. Detecta prev.obtenerId(...).id
+ * // 2. Extrae el valor interno: "{{data.data.items[0].codigo}}"
+ * // 3. Resuelve el valor: "ABC123"
+ * // 4. Ejecuta executeDynamicPrevAction("obtenerId", "ABC123", ...)
+ * // 5. Extrae el campo .id del resultado
+ * // 6. Reemplaza con el valor extraído: "198"
+ * 
+ * // Template de salida:
+ * // "198"
+ * 
+ * @example
+ * // Uso en array literal:
+ * // literal:[
+ * //   {
+ * //     "idItem": prev.obtenerId({{data.data.items[0].codigo}}).id,
+ * //     "descripcion": "{{data.data.items[0].nombre}}"
+ * //   }
+ * // ]
+ * 
+ * // Para cada elemento del array (índice 0, 1, 2...):
+ * // - Se reemplaza [0] con el índice actual
+ * // - Se ejecuta la acción previa con el valor de ese elemento
+ * // - Se extrae el campo especificado (ej: .id) del resultado
+ */
+async function processTemplateAsync(template, webhookData, prevEndpoints) {
+  // Detectar y procesar prev.nombreEndpoint({{valor}})
+  // Buscar todas las ocurrencias de prev.nombreEndpoint(
+  const prevActionPattern = /prev\.([a-zA-Z0-9_]+)\(/g;
+  const matches = [];
+  let match;
+  
+  while ((match = prevActionPattern.exec(template)) !== null) {
+    const startIndex = match.index;
+    const endpointName = match[1];
+    const openParenIndex = startIndex + match[0].length - 1; // Índice del (
+    
+    // Encontrar el paréntesis de cierre correspondiente
+    const closeParenIndex = findMatchingParenthesis(template, openParenIndex);
+    
+    if (closeParenIndex !== -1) {
+      // Extraer el contenido entre paréntesis
+      const innerContent = template.substring(openParenIndex + 1, closeParenIndex);
+      
+      // Verificar si hay un campo después del paréntesis (ej: .id, .campo, .data.id)
+      let fieldPath = null;
+      let endIndex = closeParenIndex + 1;
+      
+      // Buscar patrón: .campo o .campo.campo después del paréntesis
+      const fieldPattern = /^\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)/;
+      const afterParen = template.substring(closeParenIndex + 1);
+      const fieldMatch = afterParen.match(fieldPattern);
+      
+      if (fieldMatch) {
+        fieldPath = fieldMatch[1]; // ej: "id" o "data.id"
+        endIndex = closeParenIndex + 1 + fieldMatch[0].length; // Incluir el .campo en el match completo
+      }
+      
+      const fullMatch = template.substring(startIndex, endIndex);
+      
+      matches.push({
+        fullMatch,
+        endpointName,
+        innerContent,
+        fieldPath, // Campo a extraer del resultado (ej: "id", "data.id")
+        startIndex,
+        endIndex
+      });
+    }
+  }
+  
+  if (matches.length === 0) {
+    // No hay acciones previas dinámicas, usar processTemplate normal
+    return processTemplate(template, webhookData);
+  }
+  
+  // Procesar cada acción previa dinámica
+  let processedTemplate = template;
+  const promises = [];
+  
+  // Procesar en orden inverso para mantener los índices correctos al reemplazar
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const match = matches[i];
+    const { fullMatch, endpointName, innerContent, fieldPath } = match;
+    
+    // Resolver el valor interno del template
+    const paramValue = processTemplate(innerContent, webhookData);
+    // Remover comillas si las tiene (JSON.stringify las agrega)
+    const cleanParamValue = paramValue.replace(/^"|"$/g, '').replace(/^'|'$/g, '');
+    
+    console.log(`[Dynamic prev action] ${endpointName} - Valor del parámetro:`, cleanParamValue);
+    console.log(`[Dynamic prev action] ${endpointName} - Campo a extraer:`, fieldPath || 'ninguno (objeto completo)');
+    
+    // Ejecutar la acción previa dinámicamente
+    const promise = executeDynamicPrevAction(endpointName, cleanParamValue, prevEndpoints, webhookData)
+      .then(result => {
+        // Si hay un campo especificado (ej: .id), extraerlo del resultado
+        let finalResult = result;
+        if (fieldPath && result !== null && result !== undefined) {
+          if (typeof result === 'object') {
+            finalResult = getNestedValue(result, fieldPath);
+            if (finalResult === undefined) {
+              console.warn(`[Dynamic prev action] ${endpointName} - Campo "${fieldPath}" no encontrado en la respuesta:`, result);
+              finalResult = null;
+            } else {
+              console.log(`[Dynamic prev action] ${endpointName} - Campo "${fieldPath}" extraído:`, finalResult);
+            }
+          } else {
+            // Si el resultado no es un objeto, no se puede extraer un campo
+            console.warn(`[Dynamic prev action] ${endpointName} - No se puede extraer campo "${fieldPath}" de un valor primitivo:`, result);
+            finalResult = null;
+          }
+        } else {
+          console.log(`[Dynamic prev action] ${endpointName} - Retornando resultado completo:`, result);
+        }
+        
+        // Reemplazar en el template
+        let replacement;
+        if (finalResult === null || finalResult === undefined) {
+          replacement = 'null';
+        } else if (typeof finalResult === 'object') {
+          replacement = JSON.stringify(finalResult);
+        } else if (typeof finalResult === 'string') {
+          replacement = JSON.stringify(finalResult);
+        } else {
+          replacement = String(finalResult);
+        }
+        return { fullMatch, replacement };
+      })
+      .catch(error => {
+        console.error(`Error procesando acción previa dinámica ${endpointName}:`, error);
+        return { fullMatch, replacement: 'null' };
+      });
+    
+    promises.push(promise);
+  }
+  
+  // Esperar todas las acciones previas
+  const replacements = await Promise.all(promises);
+  
+  // Aplicar los reemplazos (en orden inverso para mantener índices)
+  for (const { fullMatch, replacement } of replacements) {
+    processedTemplate = processedTemplate.replace(fullMatch, replacement);
+  }
+  
+  // Procesar el resto del template normalmente
+  return processTemplate(processedTemplate, webhookData);
 }
 
 // Función para evaluar condiciones

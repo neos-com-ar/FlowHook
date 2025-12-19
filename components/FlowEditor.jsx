@@ -1047,12 +1047,12 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
             {activeTab === 'prev' && (
               <div className="space-y-6 transition-all duration-200">
                 <div className="flex items-center justify-between mb-4">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
                       Acciones Previas a Endpoints
                     </h3>
                     <p className="text-sm text-gray-500">
-                      Configura una o más llamadas previas a endpoints para obtener datos (ej: idCliente, idProducto) antes de enviar al destino.
+                      Configura una o más llamadas previas a endpoints para obtener datos (ej: idCliente, idItem) antes de enviar al destino.
                       Los datos obtenidos estarán disponibles como <code className="bg-gray-100 px-1 rounded text-xs">prev.nombreEndpoint.campo</code> en el mapeo.
                       Si no especificas un nombre, se usará <code className="bg-gray-100 px-1 rounded text-xs">endpoint1</code>, <code className="bg-gray-100 px-1 rounded text-xs">endpoint2</code>, etc.
                     </p>
@@ -1067,11 +1067,66 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       bodyMapEntries: [],
                       headerEntries: [],
                     }])}
-                    className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                    className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium ml-4"
                   >
                     + Agregar Endpoint
                   </button>
                 </div>
+                
+                {/* Panel de ayuda para acciones previas dinámicas */}
+                <details className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <summary className="text-sm font-medium text-blue-800 cursor-pointer hover:text-blue-900">
+                    💡 ¿Cómo usar acciones previas dinámicas en arrays?
+                  </summary>
+                  <div className="mt-3 text-xs text-blue-700 space-y-3">
+                    <div>
+                          <p className="font-medium mb-2">Para obtener un campo de cada elemento de un array:</p>
+                      <ol className="list-decimal list-inside space-y-2 ml-2">
+                            <li>
+                              <strong>Configura una acción previa:</strong>
+                              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                                <li>Nombre: <code className="bg-blue-100 px-1 rounded">obtenerId</code></li>
+                                <li>URL: <code className="bg-blue-100 px-1 rounded">https://api.ejemplo.com/items/{'{{'}codigo{'}}'}</code></li>
+                                <li>Método: <code className="bg-blue-100 px-1 rounded">GET</code></li>
+                              </ul>
+                            </li>
+                            <li>
+                              <strong>En el mapeo del array literal, usa:</strong>
+                              <pre className="bg-blue-100 p-2 rounded mt-1 text-xs overflow-x-auto">
+{`literal:[
+  {
+    "idItem": prev.obtenerId({{data.data.items[0].codigo}}).id,
+    "descripcion": "{{data.data.items[0].nombre}}",
+    "cantidad": {{data.data.items[0].cantidad}}
+  }
+]`}
+                              </pre>
+                              <p className="text-xs text-blue-600 mt-1">
+                                Nota: Usa <code className="bg-blue-200 px-1 rounded">.id</code> (o el campo que necesites) después del paréntesis para extraer ese campo específico de la respuesta.
+                              </p>
+                            </li>
+                        <li>
+                          <strong>El sistema automáticamente:</strong>
+                          <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                            <li>Itera sobre cada elemento del array (ej: <code className="bg-blue-100 px-1 rounded">data.data.items</code>)</li>
+                            <li>Ejecuta la acción previa con el código de producto de cada elemento</li>
+                                <li>Obtiene el campo especificado (ej: <code className="bg-blue-100 px-1 rounded">.id</code>) de la respuesta</li>
+                            <li>Cachea los resultados para evitar llamadas duplicadas</li>
+                          </ul>
+                        </li>
+                      </ol>
+                    </div>
+                        <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                          <p className="font-medium text-yellow-800 mb-1">⚠️ Importante:</p>
+                          <ul className="list-disc list-inside text-yellow-700 space-y-1 text-xs">
+                            <li>El endpoint debe retornar un objeto con los campos que necesites</li>
+                            <li>En el mapeo, especifica el campo a extraer usando notación de punto (ej: <code className="bg-yellow-100 px-1 rounded">.id</code>, <code className="bg-yellow-100 px-1 rounded">.data.id</code>)</li>
+                            <li>La URL debe usar <code className="bg-yellow-100 px-1 rounded">{'{{'}parametro{'}}'}</code> como placeholder (reemplaza "parametro" con el nombre que uses)</li>
+                            <li>El nombre del endpoint debe coincidir exactamente con el usado en el mapeo</li>
+                          </ul>
+                        </div>
+                  </div>
+                </details>
 
                 {prevEndpoints.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-md bg-gray-50">
@@ -1132,11 +1187,15 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                               newEndpoints[endpointIndex].name = e.target.value;
                               setPrevEndpoints(newEndpoints);
                             }}
-                            placeholder="ej: clientes, productos"
+                            placeholder="ej: clientes, productos, obtenerId"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                           <p className="mt-1 text-xs text-gray-500">
                             Si no especificas un nombre, se usará <code className="bg-gray-200 px-1 rounded">endpoint{endpointIndex + 1}</code>
+                          </p>
+                          <p className="mt-1 text-xs text-indigo-600">
+                            💡 <strong>Para acciones dinámicas:</strong> Usa un nombre descriptivo (ej: <code className="bg-indigo-100 px-1 rounded">obtenerId</code>). 
+                            Luego podrás usarlo en arrays como <code className="bg-indigo-100 px-1 rounded">prev.obtenerId({'{{'}valor{'}}'})</code>
                           </p>
                         </div>
 
@@ -1158,6 +1217,13 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                             />
                             <p className="mt-1 text-xs text-gray-500">
                               Usa <code className="bg-gray-200 px-1 rounded">{'{{campo}}'}</code> para inyectar valores del webhook en la URL
+                            </p>
+                            <p className="mt-1 text-xs text-indigo-600">
+                              💡 <strong>Para acciones dinámicas en arrays:</strong> Usa un placeholder en la URL (ej: <code className="bg-indigo-100 px-1 rounded">{'{{'}parametro{'}}'}</code>). 
+                              El valor se reemplazará automáticamente cuando se ejecute desde un array.
+                            </p>
+                            <p className="mt-1 text-xs text-gray-600">
+                              <strong>Ejemplo:</strong> <code className="bg-gray-200 px-1 rounded">https://api.ejemplo.com/items/{'{{'}codigo{'}}'}</code>
                             </p>
                           </div>
                           <div>
@@ -1667,7 +1733,8 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
                     <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
                     <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
-                    <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.lineasPedido[0].producto.codigoProducto</code>)</li>
+                    <li><strong>Acciones previas dinámicas:</strong> usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint({'{{'}valor{'}}'})</code> para ejecutar acciones previas con valores del array (ej: <code className="bg-gray-200 px-1 rounded">prev.obtenerId({'{{'}data.items[0].codigo{'}}'})</code>)</li>
+                    <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.items[0].codigo</code>)</li>
                   </ul>
                   <details className="mt-3">
                     <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
@@ -1677,9 +1744,9 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <div>
                         <p className="font-medium text-gray-700 mb-1">Acceder a elementos de un array:</p>
                         <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
-                          <li>Primer elemento: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[0].producto.codigoProducto</code></li>
-                          <li>Segundo elemento: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[1].cantidad</code></li>
-                          <li>Con transformación: <code className="bg-gray-100 px-1 rounded">data.lineasPedido[0].cantidad::number</code></li>
+                          <li>Primer elemento: <code className="bg-gray-100 px-1 rounded">data.items[0].codigo</code></li>
+                          <li>Segundo elemento: <code className="bg-gray-100 px-1 rounded">data.items[1].cantidad</code></li>
+                          <li>Con transformación: <code className="bg-gray-100 px-1 rounded">data.items[0].cantidad::number</code></li>
                         </ul>
                       </div>
                       <div>
@@ -1687,7 +1754,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                         <p className="text-gray-600 mb-1">Si la fuente es un array, puedes mapearlo directamente:</p>
                         <ul className="list-disc list-inside text-gray-600 space-y-1 ml-2">
                           <li>Campo destino: <code className="bg-gray-100 px-1 rounded">documentoDetalle</code></li>
-                          <li>Valor fuente: <code className="bg-gray-100 px-1 rounded">data.lineasPedido</code> o <code className="bg-gray-100 px-1 rounded">data.lineasPedido[]</code></li>
+                          <li>Valor fuente: <code className="bg-gray-100 px-1 rounded">data.items</code> o <code className="bg-gray-100 px-1 rounded">data.items[]</code></li>
                           <li>El sistema detectará automáticamente que es un array y lo mapeará completo</li>
                         </ul>
                       </div>
@@ -1699,22 +1766,86 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                         <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
 {`literal:[
   {
-    "idItem": "{{data.lineasPedido[0].producto.codigoProducto}}",
-    "descripcion": "{{data.lineasPedido[0].producto.nombre}}",
-    "cantidad": {{data.lineasPedido[0].cantidad}},
-    "precioUnitario": {{data.lineasPedido[0].precioUnitario}}
+    "idItem": "{{data.items[0].codigo}}",
+    "descripcion": "{{data.items[0].nombre}}",
+    "cantidad": {{data.items[0].cantidad}},
+    "precioUnitario": {{data.items[0].precioUnitario}}
   }
 ]`}
                         </pre>
                         <p className="text-gray-500 text-xs mt-1">Nota: Este ejemplo mapea solo el primer elemento. Para todos los elementos, usa el mapeo automático o itera en el literal.</p>
                       </div>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Acciones previas dinámicas en arrays:</p>
+                        <p className="text-gray-600 mb-1">Para obtener datos de endpoints previos con valores del array, usa <code className="bg-gray-100 px-1 rounded">prev.nombreEndpoint({'{{'}valor{'}}'})</code>:</p>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                          <p className="text-xs font-medium text-blue-800 mb-2">📋 Ejemplo completo paso a paso:</p>
+                          <ol className="text-xs text-blue-700 space-y-2 list-decimal list-inside">
+                            <li>
+                              <strong>Configura la acción previa:</strong>
+                              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                                <li>Ve a la pestaña "Acciones Previas"</li>
+                                <li>Nombre: <code className="bg-blue-100 px-1 rounded">obtenerId</code></li>
+                                <li>URL: <code className="bg-blue-100 px-1 rounded">https://api.ejemplo.com/items/{'{{'}codigo{'}}'}</code></li>
+                                <li>Método: <code className="bg-blue-100 px-1 rounded">GET</code></li>
+                              </ul>
+                            </li>
+                            <li>
+                              <strong>En el mapeo, usa el array literal:</strong>
+                              <pre className="bg-blue-100 p-2 rounded mt-1 text-xs overflow-x-auto">
+{`Campo destino: documentoDetalle
+Valor fuente: literal:[
+  {
+    "idItem": prev.obtenerId({{data.data.items[0].codigo}}).id,
+    "descripcion": "{{data.data.items[0].nombre}}",
+    "cantidad": {{data.data.items[0].cantidad}},
+    "precioUnitario": {{data.data.lineasPedido[0].precioUnitario}}
+  }
+]`}
+                              </pre>
+                              <p className="text-xs text-blue-600 mt-1">
+                                Nota: El <code className="bg-blue-200 px-1 rounded">.id</code> extrae ese campo específico de la respuesta de la acción previa.
+                              </p>
+                            </li>
+                            <li>
+                              <strong>El sistema automáticamente:</strong>
+                              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                                <li>Detecta que el array fuente (ej: <code className="bg-blue-100 px-1 rounded">data.data.items</code>) es un array</li>
+                                <li>Itera sobre cada elemento (reemplaza <code className="bg-blue-100 px-1 rounded">[0]</code> con <code className="bg-blue-100 px-1 rounded">[0]</code>, <code className="bg-blue-100 px-1 rounded">[1]</code>, <code className="bg-blue-100 px-1 rounded">[2]</code>...)</li>
+                                <li>Para cada elemento, ejecuta la acción previa con el valor correspondiente de ese elemento</li>
+                                <li>Obtiene el campo especificado (ej: <code className="bg-blue-100 px-1 rounded">.id</code>) de la respuesta y lo asigna al campo destino</li>
+                              </ul>
+                            </li>
+                          </ol>
+                        </div>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
+                          <p className="text-xs font-medium text-yellow-800 mb-1">⚠️ Requisitos importantes:</p>
+                          <ul className="text-xs text-yellow-700 space-y-1 list-disc list-inside">
+                            <li>El endpoint debe retornar un objeto. En el mapeo, especifica el campo a extraer usando notación de punto (ej: <code className="bg-yellow-100 px-1 rounded">prev.obtenerId({'{{'}codigo{'}}'}).id</code>)</li>
+                            <li>La URL debe usar <code className="bg-yellow-100 px-1 rounded">{'{{'}parametro{'}}'}</code> como placeholder (reemplaza "parametro" con el nombre que uses)</li>
+                            <li>El nombre del endpoint en la acción previa debe coincidir exactamente con el usado en el mapeo</li>
+                            <li>El array fuente (ej: <code className="bg-yellow-100 px-1 rounded">data.data.items</code>) debe existir en el webhook</li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-green-50 border border-green-200 rounded p-2">
+                          <p className="text-xs font-medium text-green-800 mb-1">✅ Ventajas:</p>
+                          <ul className="text-xs text-green-700 space-y-1 list-disc list-inside">
+                            <li><strong>Cache automático:</strong> Si varios elementos tienen el mismo código, solo se hace una llamada</li>
+                            <li><strong>Ejecución en paralelo:</strong> Las llamadas se ejecutan simultáneamente para mejor rendimiento</li>
+                            <li><strong>Manejo de errores:</strong> Si una llamada falla, el elemento queda con <code className="bg-green-100 px-1 rounded">null</code> (si no es requerido)</li>
+                          </ul>
+                        </div>
+                      </div>
                       <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
                         <p className="font-medium text-yellow-800 mb-1">⚠️ Errores comunes:</p>
                         <ul className="list-disc list-inside text-yellow-700 space-y-1 text-xs">
-                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido.producto</code> (falta el índice [0])</li>
-                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0].producto</code> (correcto)</li>
-                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0]producto</code> (falta el punto)</li>
-                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.lineasPedido[0].producto</code> (correcto)</li>
+                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.items.campo</code> (falta el índice [0])</li>
+                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.items[0].campo</code> (correcto)</li>
+                          <li>❌ <code className="bg-yellow-100 px-1 rounded">data.items[0]campo</code> (falta el punto)</li>
+                          <li>✅ <code className="bg-yellow-100 px-1 rounded">data.items[0].campo</code> (correcto)</li>
                         </ul>
                       </div>
                     </div>
