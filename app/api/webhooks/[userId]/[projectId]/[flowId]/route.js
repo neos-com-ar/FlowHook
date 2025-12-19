@@ -325,14 +325,30 @@ export async function POST(request, { params }) {
                     console.log(`[Array iteration] Template procesado para elemento ${index}:`, processedTemplate.substring(0, 200));
                     
                     try {
-                      const parsed = JSON.parse(processedTemplate);
-                      // Si el template es un array con un objeto, tomar el primer elemento
-                      if (Array.isArray(parsed) && parsed.length > 0) {
-                        return parsed[0];
+                      // Limpiar el template de posibles caracteres residuales
+                      let cleanTemplate = processedTemplate.trim();
+                      
+                      // Si el template parece un array JSON, intentar parsearlo
+                      if (cleanTemplate.startsWith('[') && cleanTemplate.endsWith(']')) {
+                        const parsed = JSON.parse(cleanTemplate);
+                        // Si el template es un array con un objeto, tomar el primer elemento
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                          return parsed[0];
+                        }
+                        return parsed;
                       }
-                      return parsed;
+                      
+                      // Si no es un array, intentar parsear como objeto
+                      if (cleanTemplate.startsWith('{') && cleanTemplate.endsWith('}')) {
+                        return JSON.parse(cleanTemplate);
+                      }
+                      
+                      // Si no es JSON válido, retornar null
+                      console.warn(`Template no es JSON válido para ${destKey}[${index}]:`, cleanTemplate.substring(0, 200));
+                      return null;
                     } catch (e) {
-                      console.warn(`Error parsing iterated template for ${destKey}[${index}]:`, e);
+                      console.error(`Error parsing iterated template for ${destKey}[${index}]:`, e.message);
+                      console.error(`Template que falló:`, processedTemplate.substring(0, 500));
                       return null;
                     }
                   });
@@ -1164,16 +1180,37 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
             
             if (paramValue !== undefined && paramValue !== null) {
               const fullMatchWithField = template.substring(startIndex, finalEndIndex);
+              
+              // Verificar si el match está dentro de {{...}}
+              let actualStartIndex = startIndex;
+              let actualEndIndex = finalEndIndex;
+              let needsUnwrap = false;
+              
+              // Si hay {{ antes del startIndex y }} después del endIndex, incluirlos en el match
+              if (startIndex >= 2 && template.substring(startIndex - 2, startIndex) === '{{' &&
+                  endIndex + 2 <= template.length && template.substring(endIndex, endIndex + 2) === '}}') {
+                actualStartIndex = startIndex - 2;
+                actualEndIndex = endIndex + 2;
+                needsUnwrap = true;
+              }
+              
+              const actualFullMatch = template.substring(actualStartIndex, actualEndIndex);
+              
+              console.log(`[Dynamic prev action] Detectado ${endpointName}[${arrayIndex}] con campo ${fieldPath || 'ninguno'}`);
+              console.log(`[Dynamic prev action] Match completo: "${actualFullMatch}"`);
+              console.log(`[Dynamic prev action] Parámetro encontrado: "${paramPath}" = "${paramValue}"`);
+              
               matches.push({
-                fullMatch: fullMatchWithField,
+                fullMatch: actualFullMatch,
                 endpointName,
                 innerContent: `{{${paramPath}}}`, // Usar la ruta completa con el índice correcto
                 fieldPath,
-                startIndex,
-                endIndex: finalEndIndex
+                startIndex: actualStartIndex,
+                endIndex: actualEndIndex
               });
             } else {
               console.warn(`[Dynamic prev action] No se pudo obtener el valor del parámetro "${paramPath}" para ${endpointName}[${arrayIndex}]`);
+              console.warn(`[Dynamic prev action] Array base: "${arrayBasePath}", valor:`, arrayValue);
             }
           }
         }
@@ -1196,11 +1233,29 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
     const { fullMatch, endpointName, innerContent, fieldPath } = match;
     
     // Resolver el valor interno del template
-    const paramValue = processTemplate(innerContent, webhookData);
-    // Remover comillas si las tiene (JSON.stringify las agrega)
-    const cleanParamValue = paramValue.replace(/^"|"$/g, '').replace(/^'|'$/g, '');
+    // Si innerContent ya tiene {{...}}, processTemplate lo procesará
+    // Si innerContent es solo la ruta sin {{}}, agregar las llaves
+    let contentToProcess = innerContent;
+    if (!innerContent.startsWith('{{')) {
+      contentToProcess = `{{${innerContent}}}`;
+    }
     
-    console.log(`[Dynamic prev action] ${endpointName} - Valor del parámetro:`, cleanParamValue);
+    const paramValue = processTemplate(contentToProcess, webhookData);
+    // Remover comillas si las tiene (JSON.stringify las agrega)
+    let cleanParamValue = paramValue.replace(/^"|"$/g, '').replace(/^'|'$/g, '');
+    
+    // Si después de remover comillas sigue siendo null o undefined como string, verificar el valor original
+    if (cleanParamValue === 'null' || cleanParamValue === 'undefined' || cleanParamValue === '') {
+      // Intentar obtener el valor directamente sin procesar como template
+      const directPath = innerContent.replace(/^\{\{|\}\}$/g, '').trim();
+      const directValue = getNestedValue(webhookData, directPath);
+      if (directValue !== undefined && directValue !== null) {
+        cleanParamValue = String(directValue);
+      }
+    }
+    
+    console.log(`[Dynamic prev action] ${endpointName} - innerContent: "${innerContent}"`);
+    console.log(`[Dynamic prev action] ${endpointName} - Valor del parámetro procesado:`, cleanParamValue);
     console.log(`[Dynamic prev action] ${endpointName} - Campo a extraer:`, fieldPath || 'ninguno (objeto completo)');
     
     // Ejecutar la acción previa dinámicamente
@@ -1251,12 +1306,27 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
   const replacements = await Promise.all(promises);
   
   // Aplicar los reemplazos (en orden inverso para mantener índices)
+  // Usar replace con función para asegurar que solo se reemplace la primera ocurrencia exacta
   for (const { fullMatch, replacement } of replacements) {
-    processedTemplate = processedTemplate.replace(fullMatch, replacement);
+    // Escapar caracteres especiales del fullMatch para usar en regex
+    const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedMatch, 'g');
+    const beforeReplace = processedTemplate;
+    processedTemplate = processedTemplate.replace(regex, replacement);
+    
+    if (beforeReplace !== processedTemplate) {
+      console.log(`[Template replacement] ✅ Reemplazado "${fullMatch}" con "${replacement}"`);
+      console.log(`[Template replacement] Template después del reemplazo (primeros 300 chars):`, processedTemplate.substring(0, 300));
+    } else {
+      console.warn(`[Template replacement] ⚠️ No se encontró "${fullMatch}" en el template`);
+      console.warn(`[Template replacement] Template actual (primeros 300 chars):`, processedTemplate.substring(0, 300));
+    }
   }
   
   // Procesar el resto del template normalmente
-  return processTemplate(processedTemplate, webhookData);
+  const finalResult = processTemplate(processedTemplate, webhookData);
+  console.log(`[Template processing] Resultado final (primeros 300 chars):`, finalResult.substring(0, 300));
+  return finalResult;
 }
 
 // Función para evaluar condiciones
