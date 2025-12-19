@@ -289,86 +289,151 @@ export async function POST(request, { params }) {
           // Detectar si el literal contiene templates con índices de array [0] que deberían iterarse
           // Ejemplo: si contiene {{data.items[0].campo...}} y data.items es un array,
           // iterar sobre todos los elementos reemplazando [0] con [index]
+          // También detectar prev.nombreEndpoint[0] para acciones previas dinámicas
           const arrayIndexPattern = /\{\{([^}]+)\[0\]([^}]*)\}\}/g;
+          const prevActionIndexPattern = /prev\.([a-zA-Z0-9_]+)\[0\]/g;
           const matches = [...literalValue.matchAll(arrayIndexPattern)];
+          const prevActionMatches = [...literalValue.matchAll(prevActionIndexPattern)];
+          const hasPrevAction = prevActionMatches.length > 0;
           
-          if (matches.length > 0 && literalValue.trim().startsWith('[')) {
-            // Extraer la ruta base del array del primer match
-            // El patrón regex captura: {{rutaBase[0].resto}}
-            // firstMatch[1] = rutaBase (ej: "data.data.items")
-            // firstMatch[2] = resto después de [0] (ej: ".campo")
-            const firstMatch = matches[0];
-            const arrayBasePath = firstMatch[1].trim(); // Ya es la ruta base del array
+          // Si hay matches de arrays O acciones previas con [0], y el literal es un array JSON
+          if ((matches.length > 0 || hasPrevAction) && literalValue.trim().startsWith('[')) {
+            // Buscar el array fuente - puede venir de data.items[0] o de prev.action[0]
+            let arrayBasePath = null;
+            let arrayValue = null;
             
-            if (arrayBasePath) {
-              const arrayValue = getNestedValue(combinedData, arrayBasePath);
+            if (matches.length > 0) {
+              // Extraer la ruta base del array del primer match
+              const firstMatch = matches[0];
+              arrayBasePath = firstMatch[1].trim(); // Ya es la ruta base del array
+              arrayValue = getNestedValue(combinedData, arrayBasePath);
+            } else if (hasPrevAction) {
+              // Si solo hay acciones previas, necesitamos encontrar el array fuente
+              // Buscar en la acción previa configurada para obtener la ruta del parámetro
+              const prevEndpoints = Array.isArray(flow.erpEndpoints) 
+                ? flow.erpEndpoints 
+                : (flow.erpEndpoint ? [flow.erpEndpoint] : []);
               
-              // Si encontramos un array, iterar sobre cada elemento
-              if (Array.isArray(arrayValue) && arrayValue.length > 0) {
-                try {
-                  // Obtener prevEndpoints para acciones previas dinámicas
-                  const prevEndpoints = Array.isArray(flow.erpEndpoints) 
-                    ? flow.erpEndpoints 
-                    : (flow.erpEndpoint ? [flow.erpEndpoint] : []);
-                  
-                  // Iterar sobre cada elemento del array fuente (ahora asíncrono)
-                  const mappedArrayPromises = arrayValue.map(async (item, index) => {
-                    // Reemplazar todos los [0] con el índice actual en el template
-                    let itemTemplate = literalValue.replace(/\[0\]/g, `[${index}]`);
-                    
-                    console.log(`[Array iteration] Procesando elemento ${index} del array ${arrayBasePath}`);
-                    console.log(`[Array iteration] Template después de reemplazar [0]:`, itemTemplate.substring(0, 200));
-                    
-                    // Procesar el template con el contexto actualizado (puede incluir acciones previas dinámicas)
-                    const processedTemplate = await processTemplateAsync(itemTemplate, combinedData, prevEndpoints);
-                    
-                    console.log(`[Array iteration] Template procesado para elemento ${index}:`, processedTemplate.substring(0, 200));
-                    
-                    try {
-                      // Limpiar el template de posibles caracteres residuales
-                      let cleanTemplate = processedTemplate.trim();
-                      
-                      // Si el template parece un array JSON, intentar parsearlo
-                      if (cleanTemplate.startsWith('[') && cleanTemplate.endsWith(']')) {
-                        const parsed = JSON.parse(cleanTemplate);
-                        // Si el template es un array con un objeto, tomar el primer elemento
-                        if (Array.isArray(parsed) && parsed.length > 0) {
-                          return parsed[0];
-                        }
-                        return parsed;
-                      }
-                      
-                      // Si no es un array, intentar parsear como objeto
-                      if (cleanTemplate.startsWith('{') && cleanTemplate.endsWith('}')) {
-                        return JSON.parse(cleanTemplate);
-                      }
-                      
-                      // Si no es JSON válido, retornar null
-                      console.warn(`Template no es JSON válido para ${destKey}[${index}]:`, cleanTemplate.substring(0, 200));
-                      return null;
-                    } catch (e) {
-                      console.error(`Error parsing iterated template for ${destKey}[${index}]:`, e.message);
-                      console.error(`Template que falló:`, processedTemplate.substring(0, 500));
-                      return null;
-                    }
-                  });
-                  
-                  // Esperar todas las promesas
-                  const mappedArray = (await Promise.all(mappedArrayPromises)).filter(item => item !== null);
-                  
-                  if (mappedArray.length > 0) {
-                    mappedData[destKey] = mappedArray;
-                    continue; // Saltar al siguiente campo
+              // Obtener el nombre de la acción previa del primer match
+              const firstPrevMatch = prevActionMatches[0];
+              const endpointName = firstPrevMatch[1];
+              
+              // Buscar la acción previa configurada
+              const prevEndpoint = prevEndpoints.find(ep => {
+                const epName = ep.name || `endpoint${prevEndpoints.indexOf(ep) + 1}`;
+                return epName === endpointName;
+              });
+              
+              if (prevEndpoint && prevEndpoint.url) {
+                // Extraer el parámetro de la URL (ej: {{data.data.lineasPedido[0].producto.codigoProducto}})
+                const urlParamMatch = prevEndpoint.url.match(/\{\{([^}]+)\}\}/);
+                if (urlParamMatch) {
+                  const paramPath = urlParamMatch[1].trim();
+                  // Extraer la ruta base del array (antes del [0])
+                  const arrayPathMatch = paramPath.match(/^(.+?)\[0\]/);
+                  if (arrayPathMatch) {
+                    arrayBasePath = arrayPathMatch[1];
+                    arrayValue = getNestedValue(combinedData, arrayBasePath);
+                    console.log(`[Array detection] Array encontrado desde URL de acción previa: ${arrayBasePath}, elementos: ${Array.isArray(arrayValue) ? arrayValue.length : 0}`);
                   }
-                } catch (e) {
-                  // Si falla la iteración, continuar con el procesamiento normal
-                  console.warn(`Error iterating array for ${destKey}, using normal processing:`, e);
                 }
+              }
+              
+              // Si aún no encontramos el array, buscar en rutas comunes
+              if (!arrayValue) {
+                const possiblePaths = [
+                  'data.data.lineasPedido',
+                  'data.data.items',
+                  'data.lineasPedido',
+                  'data.items',
+                  'data.data.lineas',
+                  'data.lineas'
+                ];
+                
+                for (const path of possiblePaths) {
+                  const arr = getNestedValue(combinedData, path);
+                  if (Array.isArray(arr) && arr.length > 0) {
+                    arrayBasePath = path;
+                    arrayValue = arr;
+                    console.log(`[Array detection] Array encontrado en ruta común: ${path}, elementos: ${arr.length}`);
+                    break;
+                  }
+                }
+              }
+              
+              if (!arrayValue) {
+                console.warn(`[Array detection] No se encontró array fuente para acciones previas dinámicas.`);
+                console.warn(`[Array detection] Acción previa: ${endpointName}, URL: ${prevEndpoint?.url || 'no configurada'}`);
+              }
+            }
+            
+            // Si encontramos un array, iterar sobre cada elemento
+            if (arrayValue && Array.isArray(arrayValue) && arrayValue.length > 0) {
+              try {
+                // Obtener prevEndpoints para acciones previas dinámicas
+                const prevEndpoints = Array.isArray(flow.erpEndpoints) 
+                  ? flow.erpEndpoints 
+                  : (flow.erpEndpoint ? [flow.erpEndpoint] : []);
+                
+                // Iterar sobre cada elemento del array fuente (ahora asíncrono)
+                const mappedArrayPromises = arrayValue.map(async (item, index) => {
+                  // Reemplazar todos los [0] con el índice actual en el template
+                  let itemTemplate = literalValue.replace(/\[0\]/g, `[${index}]`);
+                  
+                  console.log(`[Array iteration] Procesando elemento ${index} del array ${arrayBasePath}`);
+                  console.log(`[Array iteration] Template después de reemplazar [0]:`, itemTemplate.substring(0, 200));
+                  
+                  // Procesar el template con el contexto actualizado (puede incluir acciones previas dinámicas)
+                  const processedTemplate = await processTemplateAsync(itemTemplate, combinedData, prevEndpoints);
+                  
+                  console.log(`[Array iteration] Template procesado para elemento ${index}:`, processedTemplate.substring(0, 200));
+                  
+                  try {
+                    // Limpiar el template de posibles caracteres residuales
+                    let cleanTemplate = processedTemplate.trim();
+                    
+                    // Si el template parece un array JSON, intentar parsearlo
+                    if (cleanTemplate.startsWith('[') && cleanTemplate.endsWith(']')) {
+                      const parsed = JSON.parse(cleanTemplate);
+                      // Si el template es un array con un objeto, tomar el primer elemento
+                      if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed[0];
+                      }
+                      return parsed;
+                    }
+                    
+                    // Si no es un array, intentar parsear como objeto
+                    if (cleanTemplate.startsWith('{') && cleanTemplate.endsWith('}')) {
+                      return JSON.parse(cleanTemplate);
+                    }
+                    
+                    // Si no es JSON válido, retornar null
+                    console.warn(`Template no es JSON válido para ${destKey}[${index}]:`, cleanTemplate.substring(0, 200));
+                    return null;
+                  } catch (e) {
+                    console.error(`Error parsing iterated template for ${destKey}[${index}]:`, e.message);
+                    console.error(`Template que falló:`, processedTemplate.substring(0, 500));
+                    return null;
+                  }
+                });
+                
+                // Esperar todas las promesas
+                const mappedArray = (await Promise.all(mappedArrayPromises)).filter(item => item !== null);
+                
+                if (mappedArray.length > 0) {
+                  mappedData[destKey] = mappedArray;
+                  continue; // Saltar al siguiente campo
+                }
+              } catch (e) {
+                // Si falla la iteración, continuar con el procesamiento normal
+                console.warn(`Error iterating array for ${destKey}, using normal processing:`, e);
               }
             }
           }
           
           // Procesar templates (reemplazar {{ruta}} con valores del webhook o endpoints previos)
+          // Nota: Si hay prev.nombreEndpoint[index] aquí, se procesará en la iteración del array arriba
+          // Si llegamos aquí, significa que no se detectó como array iterable, así que procesar normalmente
           literalValue = processTemplate(literalValue, combinedData);
           
           // Intentar parsear como JSON, si falla usar como string
@@ -1088,14 +1153,25 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
   }
   
   // Buscar todas las ocurrencias de prev.nombreEndpoint({{valor}})
+  // También detectar si está dentro de {{...}} (ej: {{prev.getProducto(...)}})
   const prevActionPattern = /prev\.([a-zA-Z0-9_]+)\(/g;
   const matches = [];
   let match;
   
+  // Resetear el regex para buscar desde el inicio
+  prevActionPattern.lastIndex = 0;
+  
   while ((match = prevActionPattern.exec(template)) !== null) {
-    const startIndex = match.index;
+    let startIndex = match.index;
     const endpointName = match[1];
     const openParenIndex = startIndex + match[0].length - 1; // Índice del (
+    
+    // Verificar si está dentro de {{...}} y ajustar el startIndex
+    let needsUnwrap = false;
+    if (startIndex >= 2 && template.substring(startIndex - 2, startIndex) === '{{') {
+      startIndex = startIndex - 2; // Incluir las {{ en el match
+      needsUnwrap = true;
+    }
     
     // Encontrar el paréntesis de cierre correspondiente
     const closeParenIndex = findMatchingParenthesis(template, openParenIndex);
@@ -1118,6 +1194,11 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
         endIndex = closeParenIndex + 1 + fieldMatch[0].length; // Incluir el .campo en el match completo
       }
       
+      // Si está dentro de {{...}}, verificar si hay }} después
+      if (needsUnwrap && endIndex + 2 <= template.length && template.substring(endIndex, endIndex + 2) === '}}') {
+        endIndex = endIndex + 2; // Incluir las }} en el match
+      }
+      
       const fullMatch = template.substring(startIndex, endIndex);
       
       matches.push({
@@ -1126,7 +1207,8 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
         innerContent,
         fieldPath, // Campo a extraer del resultado (ej: "id", "data.id")
         startIndex,
-        endIndex
+        endIndex,
+        needsUnwrap // Flag para saber si hay que remover {{ y }}
       });
     }
   }
@@ -1170,12 +1252,34 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
         // el array fuente es "data.data.lineaspedido"
         const arrayPathMatch = paramName.match(/^(.+?)\[0\]/);
         if (arrayPathMatch) {
-          const arrayBasePath = arrayPathMatch[1];
-          const arrayValue = getNestedValue(webhookData, arrayBasePath);
+          let arrayBasePath = arrayPathMatch[1];
+          let arrayValue = getNestedValue(webhookData, arrayBasePath);
+          
+          // Si no encontramos el array, intentar con variaciones de mayúsculas
+          if (!Array.isArray(arrayValue)) {
+            // Intentar con diferentes variaciones de mayúsculas
+            const variations = [
+              arrayBasePath.replace(/pedido/i, 'Pedido'),
+              arrayBasePath.replace(/pedido/i, 'pedido'),
+              arrayBasePath.replace(/lineas/i, 'lineas'),
+              arrayBasePath.replace(/lineas/i, 'Lineas')
+            ];
+            
+            for (const variation of variations) {
+              if (variation !== arrayBasePath) {
+                arrayValue = getNestedValue(webhookData, variation);
+                if (Array.isArray(arrayValue)) {
+                  arrayBasePath = variation;
+                  console.log(`[Dynamic prev action] Array encontrado con variación de mayúsculas: ${variation}`);
+                  break;
+                }
+              }
+            }
+          }
           
           if (Array.isArray(arrayValue) && arrayValue.length > arrayIndex) {
             // Construir la ruta completa del parámetro para este índice
-            const paramPath = paramName.replace(/\[0\]/, `[${arrayIndex}]`);
+            const paramPath = paramName.replace(/\[0\]/, `[${arrayIndex}]`).replace(arrayPathMatch[1], arrayBasePath);
             const paramValue = getNestedValue(webhookData, paramPath);
             
             if (paramValue !== undefined && paramValue !== null) {
@@ -1230,7 +1334,7 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
   // Procesar en orden inverso para mantener los índices correctos al reemplazar
   for (let i = matches.length - 1; i >= 0; i--) {
     const match = matches[i];
-    const { fullMatch, endpointName, innerContent, fieldPath } = match;
+    const { fullMatch, endpointName, innerContent, fieldPath, needsUnwrap } = match;
     
     // Resolver el valor interno del template
     // Si innerContent ya tiene {{...}}, processTemplate lo procesará
