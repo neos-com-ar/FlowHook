@@ -1368,11 +1368,29 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
         // Si hay un campo especificado (ej: .id), extraerlo del resultado
         let finalResult = result;
         if (fieldPath && result !== null && result !== undefined) {
-          if (typeof result === 'object') {
-            finalResult = getNestedValue(result, fieldPath);
+          // Si el resultado es un array, tomar el primer elemento
+          let objectToSearch = result;
+          if (Array.isArray(result) && result.length > 0) {
+            objectToSearch = result[0];
+            console.log(`[Dynamic prev action] ${endpointName} - Respuesta es un array, usando primer elemento:`, objectToSearch);
+          }
+          
+          if (typeof objectToSearch === 'object' && objectToSearch !== null) {
+            // Intentar extraer el campo del objeto
+            finalResult = getNestedValue(objectToSearch, fieldPath);
             if (finalResult === undefined) {
-              console.warn(`[Dynamic prev action] ${endpointName} - Campo "${fieldPath}" no encontrado en la respuesta:`, result);
-              finalResult = null;
+              // Si no se encuentra con el path completo, intentar solo el nombre del campo (sin "data.")
+              // Por ejemplo, si fieldPath es "data.idItem", intentar solo "idItem"
+              const simpleFieldName = fieldPath.split('.').pop(); // Obtener el último segmento
+              finalResult = getNestedValue(objectToSearch, simpleFieldName);
+              
+              if (finalResult === undefined) {
+                console.warn(`[Dynamic prev action] ${endpointName} - Campo "${fieldPath}" no encontrado en la respuesta:`, result);
+                console.warn(`[Dynamic prev action] ${endpointName} - Intentando campo simple "${simpleFieldName}"...`);
+                finalResult = null;
+              } else {
+                console.log(`[Dynamic prev action] ${endpointName} - Campo "${simpleFieldName}" extraído (usando nombre simple):`, finalResult);
+              }
             } else {
               console.log(`[Dynamic prev action] ${endpointName} - Campo "${fieldPath}" extraído:`, finalResult);
             }
@@ -1382,7 +1400,13 @@ async function processTemplateAsync(template, webhookData, prevEndpoints) {
             finalResult = null;
           }
         } else {
-          console.log(`[Dynamic prev action] ${endpointName} - Retornando resultado completo:`, result);
+          // Si no hay fieldPath pero el resultado es un array, retornar el primer elemento
+          if (Array.isArray(result) && result.length > 0) {
+            finalResult = result[0];
+            console.log(`[Dynamic prev action] ${endpointName} - Respuesta es un array, retornando primer elemento:`, finalResult);
+          } else {
+            console.log(`[Dynamic prev action] ${endpointName} - Retornando resultado completo:`, result);
+          }
         }
         
         // Reemplazar en el template
