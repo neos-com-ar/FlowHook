@@ -24,6 +24,14 @@ export default function WebhooksPage() {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [retryWebhook, setRetryWebhook] = useState(null);
+  const [isRetryModalOpen, setIsRetryModalOpen] = useState(false);
+  const [retryPayloadText, setRetryPayloadText] = useState('');
+  const [retryError, setRetryError] = useState('');
+  const [retryLoading, setRetryLoading] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -47,7 +55,7 @@ export default function WebhooksPage() {
     if (session) {
       fetchWebhooks();
     }
-  }, [session, selectedFlowId, currentPage]);
+  }, [session, selectedFlowId, currentPage, statusFilter, startDate, endDate]);
 
   const fetchFlows = async () => {
     try {
@@ -69,10 +77,24 @@ export default function WebhooksPage() {
         setLoading(true);
       }
       const offset = (currentPage - 1) * pageSize;
-      const url = selectedFlowId 
-        ? `/api/webhooks?flowId=${selectedFlowId}&limit=${pageSize}&offset=${offset}`
-        : `/api/webhooks?limit=${pageSize}&offset=${offset}`;
-      const response = await fetch(url);
+
+      const params = new URLSearchParams();
+      params.set('limit', pageSize.toString());
+      params.set('offset', offset.toString());
+      if (selectedFlowId) {
+        params.set('flowId', selectedFlowId);
+      }
+      if (statusFilter) {
+        params.set('status', statusFilter);
+      }
+      if (startDate) {
+        params.set('startDate', startDate);
+      }
+      if (endDate) {
+        params.set('endDate', endDate);
+      }
+
+      const response = await fetch(`/api/webhooks?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setWebhooks(data.webhooks || []);
@@ -117,6 +139,73 @@ export default function WebhooksPage() {
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
+  const openRetryModal = (webhook) => {
+    setRetryWebhook(webhook);
+    setRetryPayloadText(
+      JSON.stringify(webhook.incomingData || {}, null, 2),
+    );
+    setRetryError('');
+    setIsRetryModalOpen(true);
+  };
+
+  const closeRetryModal = () => {
+    setIsRetryModalOpen(false);
+    setRetryWebhook(null);
+    setRetryPayloadText('');
+    setRetryError('');
+    setRetryLoading(false);
+  };
+
+  const handleRetrySubmit = async () => {
+    if (!retryWebhook) return;
+
+    let parsedPayload = null;
+    try {
+      parsedPayload = JSON.parse(retryPayloadText || '{}');
+    } catch (e) {
+      setRetryError('El JSON del payload no es válido');
+      return;
+    }
+
+    try {
+      setRetryLoading(true);
+      setRetryError('');
+
+      const response = await fetch('/api/webhooks/retry', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          webhookId: retryWebhook.id,
+          flowId: retryWebhook.flowId,
+          projectId: retryWebhook.projectId || null,
+          modifiedPayload: parsedPayload,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setRetryError(
+          result.message ||
+            result.error ||
+            'Error al re-ejecutar el webhook',
+        );
+        return;
+      }
+
+      closeRetryModal();
+      // Refrescar lista de webhooks para ver el nuevo estado
+      fetchWebhooks(true);
+    } catch (error) {
+      console.error('Error realizando retry del webhook:', error);
+      setRetryError('Error inesperado al re-ejecutar el webhook');
+    } finally {
+      setRetryLoading(false);
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -156,26 +245,79 @@ export default function WebhooksPage() {
         </div>
       </div>
 
-      {/* Filtro por flujo */}
+      {/* Filtros */}
       <div className="mb-6 bg-white rounded-lg shadow p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Filtrar por flujo:
-        </label>
-        <select
-          value={selectedFlowId || ''}
-          onChange={(e) => {
-            setSelectedFlowId(e.target.value || null);
-            setCurrentPage(1); // Resetear a la primera página al cambiar el filtro
-          }}
-          className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Todos los flujos</option>
-          {flows.map((flow) => (
-            <option key={flow.id} value={flow.id}>
-              {flow.projectName ? `${flow.projectName} - ` : ''}{flow.name} ({flow.id})
-            </option>
-          ))}
-        </select>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Filtrar por flujo:
+            </label>
+            <select
+              value={selectedFlowId || ''}
+              onChange={(e) => {
+                setSelectedFlowId(e.target.value || null);
+                setCurrentPage(1); // Resetear a la primera página al cambiar el filtro
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Todos los flujos</option>
+              {flows.map((flow) => (
+                <option key={flow.id} value={flow.id}>
+                  {flow.projectName ? `${flow.projectName} - ` : ''}
+                  {flow.name} ({flow.id})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Estado:
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Todos</option>
+              <option value="success">Exitosos</option>
+              <option value="error">Errores</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Desde:
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Hasta:
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -235,21 +377,44 @@ export default function WebhooksPage() {
                         {webhook.flowId}
                       </span>
                     )}
+                    {webhook.manualRetry && (
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                        {`Re-ejecutado manualmente${
+                          webhook.retryCount
+                            ? ` (${webhook.retryCount} vez${
+                                webhook.retryCount > 1 ? 'es' : ''
+                              })`
+                            : ''
+                        }`}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-gray-500">
                     {formatDate(webhook.timestamp)}
                   </div>
                 </div>
-                <button
-                  onClick={() =>
-                    setExpandedWebhook(
-                      expandedWebhook === webhook.id ? null : webhook.id
-                    )
-                  }
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-                >
-                  {expandedWebhook === webhook.id ? 'Ocultar' : 'Ver detalles'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {!webhook.result?.success && (
+                    <button
+                      onClick={() => openRetryModal(webhook)}
+                      className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    >
+                      Re-ejecutar
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      setExpandedWebhook(
+                        expandedWebhook === webhook.id ? null : webhook.id,
+                      )
+                    }
+                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    {expandedWebhook === webhook.id
+                      ? 'Ocultar'
+                      : 'Ver detalles'}
+                  </button>
+                </div>
               </div>
 
               {(webhook.destino || webhook.method) && (
@@ -337,6 +502,31 @@ export default function WebhooksPage() {
                       </pre>
                     </div>
                   )}
+                  {(webhook.retryCount || webhook.lastRetryAt) && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                        Información de re-ejecución:
+                      </h3>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        {typeof webhook.retryCount === 'number' && (
+                          <p>
+                            Reintentos manuales:{' '}
+                            <span className="font-semibold">
+                              {webhook.retryCount}
+                            </span>
+                          </p>
+                        )}
+                        {webhook.lastRetryAt && (
+                          <p>
+                            Último reintento:{' '}
+                            <span className="font-semibold">
+                              {formatDate(webhook.lastRetryAt)}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -396,6 +586,68 @@ export default function WebhooksPage() {
             </div>
           )}
         </>
+      )}
+      {isRetryModalOpen && retryWebhook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Re-ejecutar webhook fallido
+              </h2>
+              <button
+                onClick={closeRetryModal}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+                disabled={retryLoading}
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="text-sm text-gray-700 space-y-1">
+                <p>
+                  <span className="font-medium">Flujo:</span>{' '}
+                  {retryWebhook.flowName || retryWebhook.flowId}
+                </p>
+                <p>
+                  <span className="font-medium">ID webhook:</span>{' '}
+                  <span className="font-mono text-xs break-all">
+                    {retryWebhook.id}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payload a enviar (JSON):
+                </label>
+                <textarea
+                  className="w-full h-64 font-mono text-xs border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={retryPayloadText}
+                  onChange={(e) => setRetryPayloadText(e.target.value)}
+                  disabled={retryLoading}
+                />
+                {retryError && (
+                  <p className="mt-2 text-xs text-red-600">{retryError}</p>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={closeRetryModal}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                disabled={retryLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRetrySubmit}
+                disabled={retryLoading}
+                className="px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {retryLoading ? 'Re-ejecutando...' : 'Re-ejecutar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

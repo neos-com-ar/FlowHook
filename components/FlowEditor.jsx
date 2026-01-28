@@ -1706,40 +1706,28 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       Define cómo se mapean los campos del webhook entrante a los campos del destino.
                     </p>
                   </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  type="button"
-                  onClick={handleOpenAIModal}
-                  className="flex items-center space-x-1 text-sm bg-purple-100 text-purple-700 px-3 py-1.5 rounded-md hover:bg-purple-200 transition-colors"
-                  title="Mapeo inteligente con IA"
-                >
-                  <Bot className="w-4 h-4" />
-                  <span>Mapeo IA</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={addMappingEntry}
-                  className="text-sm text-indigo-600 hover:text-indigo-700"
-                >
-                  + Agregar Campo
-                </button>
-              </div>
-            </div>
+                </div>
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-4 mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Guía de Mapeo:</h4>
-                  <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                    <li>Para mapear un campo normal, usa <code className="bg-gray-200 px-1 rounded">data.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">data.nombreCompleto</code>)</li>
-                    <li>Para valores fijos, usa <code className="bg-gray-200 px-1 rounded">literal:valor</code></li>
-                    <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
-                    <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
-                    <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
-                    <li><strong>Acciones previas dinámicas:</strong> usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint({'{{'}valor{'}}'})</code> para ejecutar acciones previas con valores del array (ej: <code className="bg-gray-200 px-1 rounded">prev.obtenerId({'{{'}data.items[0].codigo{'}}'})</code>)</li>
-                    <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.items[0].codigo</code>)</li>
-                  </ul>
-                  <details className="mt-3">
-                    <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
-                      Ver más ejemplos de arrays
+                  <details>
+                    <summary className="text-sm font-medium text-gray-700 mb-2 cursor-pointer select-none">
+                      Guía de Mapeo
                     </summary>
+                    <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside mt-1">
+                      <li>Para mapear un campo normal, usa <code className="bg-gray-200 px-1 rounded">data.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">data.nombreCompleto</code>)</li>
+                      <li>Para valores fijos, usa <code className="bg-gray-200 px-1 rounded">literal:valor</code></li>
+                      <li>Para mapear valores (ej: "OBR"→1), usa <code className="bg-gray-200 px-1 rounded">data.campo::map{'{'}OBR:1,PRO:2{'}'}</code></li>
+                      <li>Para convertir a número, usa <code className="bg-gray-200 px-1 rounded">::number</code> o <code className="bg-gray-200 px-1 rounded">::int</code></li>
+                      <li>Para recortar texto, usa <code className="bg-gray-200 px-1 rounded">::trim</code> (ej: <code className="bg-gray-200 px-1 rounded">data.nombre::trim</code>)</li>
+                      <li>Para limitar el largo, usa <code className="bg-gray-200 px-1 rounded">::left(N)</code> o <code className="bg-gray-200 px-1 rounded">::right(N)</code> (ej: <code className="bg-gray-200 px-1 rounded">data.nombre::left(15)</code>)</li>
+                      <li>Puedes encadenar transformaciones, por ejemplo <code className="bg-gray-200 px-1 rounded">data.nombre::trim::left(15)</code></li>
+                      <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
+                      <li><strong>Acciones previas dinámicas:</strong> usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint({'{{'}valor{'}}'})</code> para ejecutar acciones previas con valores del array (ej: <code className="bg-gray-200 px-1 rounded">prev.obtenerId({'{{'}data.items[0].codigo{'}}'})</code>)</li>
+                      <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.items[0].codigo</code>)</li>
+                    </ul>
+                    <details className="mt-3">
+                      <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
+                        Ver más ejemplos de arrays
+                      </summary>
                     <div className="mt-2 p-3 bg-white border border-gray-200 rounded text-xs space-y-2">
                       <div>
                         <p className="font-medium text-gray-700 mb-1">Acceder a elementos de un array:</p>
@@ -1850,6 +1838,7 @@ Valor fuente: literal:[
                       </div>
                     </div>
                   </details>
+                  </details>
                 </div>
 
             {mappingEntries.length === 0 ? (
@@ -1864,12 +1853,36 @@ Valor fuente: literal:[
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {mappingEntries.map((entry, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <input
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">
+                    Campos de mapeo
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenAIModal}
+                      className="flex items-center space-x-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-md hover:bg-purple-200 transition-colors"
+                      title="Mapeo inteligente con IA"
+                    >
+                      <Bot className="w-4 h-4" />
+                      <span>Mapeo IA</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addMappingEntry}
+                      className="text-sm text-indigo-600 hover:text-indigo-700"
+                    >
+                      + Agregar Campo
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {mappingEntries.map((entry, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <input
                           type="text"
                           value={entry.src}
                           onChange={(e) => handleMappingChange(index, 'src', e.target.value)}
@@ -1918,8 +1931,9 @@ Valor fuente: literal:[
                       ✕
                     </button>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
               </div>
             )}

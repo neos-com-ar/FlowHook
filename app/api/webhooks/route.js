@@ -22,8 +22,21 @@ export async function GET(request) {
     const flowId = searchParams.get('flowId');
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const status = searchParams.get('status');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
-    const result = await getWebhooks(session.user.id, flowId || null, limit, offset);
+    const result = await getWebhooks(
+      session.user.id,
+      flowId || null,
+      limit,
+      offset,
+      {
+        status,
+        startDate,
+        endDate,
+      }
+    );
 
     return NextResponse.json({ 
       webhooks: result.webhooks,
