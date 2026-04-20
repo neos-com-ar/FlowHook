@@ -81,6 +81,7 @@ export async function POST(request) {
       flow,
       flowId,
       incomingData,
+      incomingHeaders: originalWebhook.incomingHeaders || {},
       mode: 'retry',
       originalWebhook,
       manual: true,

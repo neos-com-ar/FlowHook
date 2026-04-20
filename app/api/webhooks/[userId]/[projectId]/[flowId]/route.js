@@ -58,12 +58,17 @@ export async function POST(request, { params }) {
 
     const body = await request.json();
 
+    // Normalizar headers entrantes para que puedan reutilizarse en plantillas
+    // (ej: Authorization: "Bearer {{headers.authorization}}")
+    const incomingHeaders = Object.fromEntries(request.headers.entries());
+
     try {
       const { webhookRecord, webhookResult } = await executeWebhook({
         userId,
         flow,
         flowId,
         incomingData: body,
+        incomingHeaders,
         mode: 'new',
         originalWebhook: null,
         manual: false,
