@@ -478,6 +478,19 @@ export default function WebhooksPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Headers recibidos (origen):
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Cabeceras HTTP de la petición que envió el sistema origen a
+                      FlowHook (pueden incluir cabeceras añadidas por la plataforma
+                      de despliegue).
+                    </p>
+                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                      {JSON.stringify(webhook.incomingHeaders || {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
                       Headers enviados:
                     </h3>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
