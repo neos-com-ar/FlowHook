@@ -481,6 +481,7 @@ export default function FlowList({ projectId, projectColor }) {
               method: method,
               map: flow.map || {},
               webhookSecret: flow.webhookSecret || undefined,
+              incomingWebhookSecret: flow.incomingWebhookSecret || undefined,
               erpEndpoints: flow.erpEndpoints || null,
               erpEndpoint: flow.erpEndpoint || null, // Retrocompatibilidad
               projectId: projectId || flow.projectId,

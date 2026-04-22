@@ -26,6 +26,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     method: 'POST',
     map: {},
     webhookSecret: '',
+    incomingWebhookSecret: '',
     erpEndpoints: null,
   });
   const [prevEndpoints, setPrevEndpoints] = useState([]); // Array de endpoints previos
@@ -61,6 +62,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         method: flow.method || 'POST',
         map: flow.map || {},
         webhookSecret: flow.webhookSecret || '',
+        incomingWebhookSecret: flow.incomingWebhookSecret || '',
         erpEndpoint: flow.erpEndpoint || null,
       });
       setMappingEntries(
@@ -711,6 +713,11 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         formData.webhookSecret.trim() !== ''
           ? formData.webhookSecret.trim()
           : undefined,
+      incomingWebhookSecret:
+        typeof formData.incomingWebhookSecret === 'string' &&
+        formData.incomingWebhookSecret.trim() !== ''
+          ? formData.incomingWebhookSecret.trim()
+          : undefined,
       headers: Object.keys(destinationHeadersObj).length > 0 ? destinationHeadersObj : undefined,
       erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
       conditions: validConditions.length > 0 ? validConditions : undefined,
@@ -980,6 +987,31 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                     Si lo configuras, FlowHook firmará el payload enviado a tu destino y agregará el header
                     <code className="bg-gray-100 px-1 rounded ml-1">X-Webhook-Signature</code>
                     usando HMAC-SHA256.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="incomingWebhookSecret"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Secret del origen (validar entrada, opcional)
+                  </label>
+                  <input
+                    type="text"
+                    id="incomingWebhookSecret"
+                    name="incomingWebhookSecret"
+                    value={formData.incomingWebhookSecret}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder='Mismo valor que el "Secret" en tu ERP / origen'
+                    autoComplete="off"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Si lo configuras, FlowHook exigirá la cabecera{' '}
+                    <code className="bg-gray-100 px-1 rounded">X-Webhook-Signature</code> y comprobará que sea
+                    HMAC-SHA256 del cuerpo JSON en bruto (hex), igual que cuando FlowHook firma hacia un destino.
+                    Así solo quien conoce este secret puede llamar a la URL del flujo.
                   </p>
                 </div>
 

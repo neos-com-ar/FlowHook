@@ -265,6 +265,25 @@ export async function POST(request) {
       );
     }
 
+    const hasIncomingWebhookSecret =
+      body.incomingWebhookSecret !== undefined &&
+      body.incomingWebhookSecret !== null;
+    const incomingWebhookSecret =
+      typeof body.incomingWebhookSecret === 'string' &&
+      body.incomingWebhookSecret.trim() !== ''
+        ? body.incomingWebhookSecret.trim()
+        : undefined;
+
+    if (hasIncomingWebhookSecret && incomingWebhookSecret === undefined) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid incomingWebhookSecret. Must be a non-empty string.',
+        },
+        { status: 400 },
+      );
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
@@ -272,6 +291,7 @@ export async function POST(request) {
       method: method,
       map: body.map || {},
       webhookSecret,
+      incomingWebhookSecret,
       headers: body.headers || undefined, // Headers personalizados del destino
       erpEndpoints: erpEndpoints.length > 0 ? erpEndpoints : null, // Array de endpoints del ERP
       erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
@@ -382,6 +402,7 @@ export async function PUT(request) {
       method: originalFlow.method || 'POST',
       map: originalFlow.map ? { ...originalFlow.map } : {},
       webhookSecret: originalFlow.webhookSecret || undefined,
+      incomingWebhookSecret: originalFlow.incomingWebhookSecret || undefined,
       headers: originalFlow.headers ? { ...originalFlow.headers } : undefined, // Headers personalizados del destino
       erpEndpoints: originalFlow.erpEndpoints ? originalFlow.erpEndpoints.map(e => ({ ...e })) : null,
       erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad

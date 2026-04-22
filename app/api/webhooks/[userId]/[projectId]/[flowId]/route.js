@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getProjectFlows, getFlow, saveWebhook } from '@/lib/db';
 import { executeWebhook } from '@/lib/webhook-executor';
+import { verifyIncomingXWebhookSignature } from '@/lib/webhook-signature-verify';
 
 export async function POST(request, { params }) {
   try {
@@ -56,7 +57,39 @@ export async function POST(request, { params }) {
       );
     }
 
-    const body = await request.json();
+    const rawBody = await request.text();
+
+    if (
+      flow.incomingWebhookSecret &&
+      typeof flow.incomingWebhookSecret === 'string'
+    ) {
+      const signatureHeader =
+        request.headers.get('x-webhook-signature') ||
+        request.headers.get('X-Webhook-Signature');
+
+      const check = verifyIncomingXWebhookSignature(
+        rawBody,
+        flow.incomingWebhookSecret,
+        signatureHeader,
+      );
+
+      if (!check.ok) {
+        return NextResponse.json(
+          { error: 'Unauthorized', message: check.error },
+          { status: 401 },
+        );
+      }
+    }
+
+    let body;
+    try {
+      body = rawBody.trim() === '' ? {} : JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 },
+      );
+    }
 
     // Normalizar headers entrantes para que puedan reutilizarse en plantillas
     // (ej: Authorization: "Bearer {{headers.authorization}}")

@@ -207,7 +207,8 @@ FlowHook/
    - **ID del Flujo**: Identificador único (ej: `erp-client`)
    - **Nombre Descriptivo**: Nombre amigable (ej: "Alta cliente ERP")
    - **URL Destino**: URL donde se reenviarán los datos (ej: `https://api.crm.com/clientes`)
-   - **Secret para firma HMAC (opcional)**: Secret compartido para firmar el payload saliente
+   - **Secret para firma HMAC (opcional)**: Secret compartido para firmar el payload saliente hacia tu API destino
+   - **Secret del origen (validar entrada, opcional)**: Mismo secret que configura tu ERP/origen para generar `X-Webhook-Signature`; FlowHook lo usa para rechazar llamadas sin firma válida
    - **Mapeo de Datos**: Define cómo se mapean los campos del webhook entrante a los campos del destino
 
 ### Firma `X-Webhook-Signature` (HMAC-SHA256)
@@ -219,6 +220,18 @@ Si configuras el campo **Secret para firma HMAC** en un flujo:
 - El payload firmado es el JSON mapeado que se envía al destino
 
 Esto permite que tu API destino valide autenticidad e integridad del contenido recibido.
+
+### Validar firma entrante (origen → FlowHook)
+
+Si configuras **Secret del origen (validar entrada)** en el flujo:
+
+- Cada `POST` a la URL del webhook debe incluir la cabecera `X-Webhook-Signature`.
+- FlowHook calcula `HMAC-SHA256(secret, cuerpo_raw_en_UTF-8)` y compara con el valor recibido (hexadecimal, 64 caracteres). Se aceptan formatos con prefijo tipo `sha256=<hex>`.
+- El **cuerpo firmado por el origen** debe ser exactamente el mismo string JSON que envía en el body (mismos espacios y orden de campos si afectan al string).
+
+Si la firma no coincide o falta la cabecera, FlowHook responde **401 Unauthorized**.
+
+Puedes combinar esto con la variable de entorno **`SECRET_KEY`** (`Authorization: Bearer …`) si quieres dos capas de protección.
 
 ### Usar el webhook
 
@@ -273,6 +286,7 @@ Se reenviará a tu destino como:
 - ✅ Los usuarios solo pueden acceder a sus propios flujos
 - ✅ Validación de `SECRET_KEY` en webhooks (si está configurado)
 - ✅ Firma saliente opcional `X-Webhook-Signature` con HMAC-SHA256 por flujo
+- ✅ Validación entrante opcional de `X-Webhook-Signature` si el flujo tiene secret de origen configurado
 - ✅ Límite de tamaño de body (1MB)
 - ✅ Validación de formato de IDs y URLs
 - ✅ HTTPS automático en Vercel
@@ -282,7 +296,8 @@ Se reenviará a tu destino como:
 - Si no configuras Vercel KV, los datos se guardarán en `/tmp/data.json` (solo funciona en desarrollo local)
 - El ID del flujo no se puede cambiar después de crear el flujo
 - Los webhooks requieren el header `Authorization: Bearer {SECRET_KEY}` si `SECRET_KEY` está configurado
-- Si configuras el secret del flujo, el destino recibirá `X-Webhook-Signature` en hexadecimal (HMAC-SHA256)
+- Si configuras el secret de firma saliente del flujo, el destino recibirá `X-Webhook-Signature` en hexadecimal (HMAC-SHA256)
+- Si configuras el secret de origen del flujo, FlowHook exigirá `X-Webhook-Signature` válida en cada petición entrante
 - El sistema soporta mapeo de campos anidados usando notación de punto (ej: `user.profile.name`)
 
 ## 🐛 Solución de Problemas
