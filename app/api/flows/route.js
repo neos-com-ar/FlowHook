@@ -251,12 +251,27 @@ export async function POST(request) {
       }
     }
 
+    const hasWebhookSecret =
+      body.webhookSecret !== undefined && body.webhookSecret !== null;
+    const webhookSecret =
+      typeof body.webhookSecret === 'string' && body.webhookSecret.trim() !== ''
+        ? body.webhookSecret.trim()
+        : undefined;
+
+    if (hasWebhookSecret && webhookSecret === undefined) {
+      return NextResponse.json(
+        { error: 'Invalid webhookSecret. Must be a non-empty string.' },
+        { status: 400 }
+      );
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
       destino: body.destino,
       method: method,
       map: body.map || {},
+      webhookSecret,
       headers: body.headers || undefined, // Headers personalizados del destino
       erpEndpoints: erpEndpoints.length > 0 ? erpEndpoints : null, // Array de endpoints del ERP
       erpEndpoint: body.erpEndpoint || null, // Mantener para retrocompatibilidad
@@ -366,6 +381,7 @@ export async function PUT(request) {
       destino: originalFlow.destino,
       method: originalFlow.method || 'POST',
       map: originalFlow.map ? { ...originalFlow.map } : {},
+      webhookSecret: originalFlow.webhookSecret || undefined,
       headers: originalFlow.headers ? { ...originalFlow.headers } : undefined, // Headers personalizados del destino
       erpEndpoints: originalFlow.erpEndpoints ? originalFlow.erpEndpoints.map(e => ({ ...e })) : null,
       erpEndpoint: originalFlow.erpEndpoint ? { ...originalFlow.erpEndpoint } : null, // Retrocompatibilidad

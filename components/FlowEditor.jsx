@@ -25,6 +25,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     destino: '',
     method: 'POST',
     map: {},
+    webhookSecret: '',
     erpEndpoints: null,
   });
   const [prevEndpoints, setPrevEndpoints] = useState([]); // Array de endpoints previos
@@ -59,6 +60,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         destino: flow.destino || '',
         method: flow.method || 'POST',
         map: flow.map || {},
+        webhookSecret: flow.webhookSecret || '',
         erpEndpoint: flow.erpEndpoint || null,
       });
       setMappingEntries(
@@ -704,6 +706,11 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     const flowData = {
       ...formData,
       map,
+      webhookSecret:
+        typeof formData.webhookSecret === 'string' &&
+        formData.webhookSecret.trim() !== ''
+          ? formData.webhookSecret.trim()
+          : undefined,
       headers: Object.keys(destinationHeadersObj).length > 0 ? destinationHeadersObj : undefined,
       erpEndpoints: prevEndpointsData.length > 0 ? prevEndpointsData : null,
       conditions: validConditions.length > 0 ? validConditions : undefined,
@@ -953,6 +960,27 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <option value="PATCH">PATCH</option>
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label htmlFor="webhookSecret" className="block text-sm font-medium text-gray-700 mb-1">
+                    Secret para firma HMAC (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    id="webhookSecret"
+                    name="webhookSecret"
+                    value={formData.webhookSecret}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="ej: mi-secret-super-seguro"
+                    autoComplete="off"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Si lo configuras, FlowHook firmará el payload enviado a tu destino y agregará el header
+                    <code className="bg-gray-100 px-1 rounded ml-1">X-Webhook-Signature</code>
+                    usando HMAC-SHA256.
+                  </p>
                 </div>
 
                 {/* Headers del Destino */}

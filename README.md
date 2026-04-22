@@ -207,7 +207,18 @@ FlowHook/
    - **ID del Flujo**: Identificador único (ej: `erp-client`)
    - **Nombre Descriptivo**: Nombre amigable (ej: "Alta cliente ERP")
    - **URL Destino**: URL donde se reenviarán los datos (ej: `https://api.crm.com/clientes`)
+   - **Secret para firma HMAC (opcional)**: Secret compartido para firmar el payload saliente
    - **Mapeo de Datos**: Define cómo se mapean los campos del webhook entrante a los campos del destino
+
+### Firma `X-Webhook-Signature` (HMAC-SHA256)
+
+Si configuras el campo **Secret para firma HMAC** en un flujo:
+
+- FlowHook genera automáticamente `X-Webhook-Signature`
+- La firma se calcula como `HMAC-SHA256(payload_json, secret)`
+- El payload firmado es el JSON mapeado que se envía al destino
+
+Esto permite que tu API destino valide autenticidad e integridad del contenido recibido.
 
 ### Usar el webhook
 
@@ -261,6 +272,7 @@ Se reenviará a tu destino como:
 - ✅ Validación de sesión en todas las rutas protegidas
 - ✅ Los usuarios solo pueden acceder a sus propios flujos
 - ✅ Validación de `SECRET_KEY` en webhooks (si está configurado)
+- ✅ Firma saliente opcional `X-Webhook-Signature` con HMAC-SHA256 por flujo
 - ✅ Límite de tamaño de body (1MB)
 - ✅ Validación de formato de IDs y URLs
 - ✅ HTTPS automático en Vercel
@@ -270,6 +282,7 @@ Se reenviará a tu destino como:
 - Si no configuras Vercel KV, los datos se guardarán en `/tmp/data.json` (solo funciona en desarrollo local)
 - El ID del flujo no se puede cambiar después de crear el flujo
 - Los webhooks requieren el header `Authorization: Bearer {SECRET_KEY}` si `SECRET_KEY` está configurado
+- Si configuras el secret del flujo, el destino recibirá `X-Webhook-Signature` en hexadecimal (HMAC-SHA256)
 - El sistema soporta mapeo de campos anidados usando notación de punto (ej: `user.profile.name`)
 
 ## 🐛 Solución de Problemas
