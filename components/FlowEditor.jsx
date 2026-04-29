@@ -52,6 +52,17 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
   const [conditions, setConditions] = useState([]); // Array de condiciones
   const [conditionFailureAction, setConditionFailureAction] = useState('error'); // 'error' o 'skip'
   const [postResponseActions, setPostResponseActions] = useState([]); // Array de acciones post-respuesta
+  const [entityLinking, setEntityLinking] = useState({
+    enabled: false,
+    keyTemplate: '',
+    sourceSystem: '',
+    sourceEntityType: '',
+    sourceEntityId: '',
+    sourceEventId: '',
+    targetSystem: '',
+    targetEntityType: '',
+    targetEntityId: '',
+  });
 
   useEffect(() => {
     if (flow) {
@@ -148,6 +159,34 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         );
       } else {
         setPostResponseActions([]);
+      }
+
+      // Configurar entity linking si existe
+      if (flow.entityLinking && typeof flow.entityLinking === 'object') {
+        const el = flow.entityLinking;
+        setEntityLinking({
+          enabled: Boolean(el.enabled),
+          keyTemplate: el.keyTemplate || '',
+          sourceSystem: el.source?.system || '',
+          sourceEntityType: el.source?.entityType || '',
+          sourceEntityId: el.source?.entityId || '',
+          sourceEventId: el.source?.eventId || '',
+          targetSystem: el.target?.system || '',
+          targetEntityType: el.target?.entityType || '',
+          targetEntityId: el.target?.entityId || '',
+        });
+      } else {
+        setEntityLinking({
+          enabled: false,
+          keyTemplate: '',
+          sourceSystem: '',
+          sourceEntityType: '',
+          sourceEntityId: '',
+          sourceEventId: '',
+          targetSystem: '',
+          targetEntityType: '',
+          targetEntityId: '',
+        });
       }
     }
   }, [flow]);
@@ -705,6 +744,37 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         };
       });
 
+    // Construir el bloque entityLinking si está habilitado o si tiene algún campo seteado
+    const trimOrUndef = (v) =>
+      typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+    const entityLinkingSource = {
+      system: trimOrUndef(entityLinking.sourceSystem),
+      entityType: trimOrUndef(entityLinking.sourceEntityType),
+      entityId: trimOrUndef(entityLinking.sourceEntityId),
+      eventId: trimOrUndef(entityLinking.sourceEventId),
+    };
+    const entityLinkingTarget = {
+      system: trimOrUndef(entityLinking.targetSystem),
+      entityType: trimOrUndef(entityLinking.targetEntityType),
+      entityId: trimOrUndef(entityLinking.targetEntityId),
+    };
+    const hasAnySource = Object.values(entityLinkingSource).some(Boolean);
+    const hasAnyTarget = Object.values(entityLinkingTarget).some(Boolean);
+    const hasAnyEntityLinking =
+      entityLinking.enabled ||
+      trimOrUndef(entityLinking.keyTemplate) ||
+      hasAnySource ||
+      hasAnyTarget;
+
+    const entityLinkingData = hasAnyEntityLinking
+      ? {
+          enabled: Boolean(entityLinking.enabled),
+          keyTemplate: trimOrUndef(entityLinking.keyTemplate),
+          source: hasAnySource ? entityLinkingSource : undefined,
+          target: hasAnyTarget ? entityLinkingTarget : undefined,
+        }
+      : undefined;
+
     const flowData = {
       ...formData,
       map,
@@ -723,6 +793,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       conditions: validConditions.length > 0 ? validConditions : undefined,
       conditionFailureAction: conditionFailureAction || 'error',
       postResponseActions: postResponseActionsData.length > 0 ? postResponseActionsData : null,
+      entityLinking: entityLinkingData,
       projectId: projectId || flow?.projectId,
     };
 
@@ -885,6 +956,26 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 {postResponseActions.length > 0 && (
                   <span className="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs">
                     {postResponseActions.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('entityLinking')}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${
+                    activeTab === 'entityLinking'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <LinkIcon className="w-4 h-4 mr-2" />
+                Entity Linking
+                {entityLinking.enabled && (
+                  <span className="ml-2 bg-green-100 text-green-700 py-0.5 px-2 rounded-full text-xs">
+                    on
                   </span>
                 )}
               </button>
@@ -2330,9 +2421,182 @@ Valor fuente: literal:[
                           <li>Puedes usar <code className="bg-blue-100 px-1 rounded">response.campo</code> para acceder a datos de la respuesta del destino</li>
                           <li>Puedes usar <code className="bg-blue-100 px-1 rounded">data.campo</code> para acceder a datos del webhook original</li>
                           <li>Puedes usar <code className="bg-blue-100 px-1 rounded">prev.nombreEndpoint.campo</code> para acceder a datos de llamadas previas</li>
+                          <li>Si Entity Linking está habilitado, también podés usar <code className="bg-blue-100 px-1 rounded">entityLink.target_entity_id</code> para devolver al origen el ID del destino.</li>
                           <li>Las acciones se ejecutan secuencialmente en el orden configurado</li>
                         </ul>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pestaña: Entity Linking */}
+            {activeTab === 'entityLinking' && (
+              <div className="space-y-6 transition-all duration-200">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Entity Linking
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Persiste un mapeo genérico entre la entidad de origen y la entidad creada/actualizada en el destino.
+                    Permite reutilizar el ID del destino en llamadas posteriores (vía <code className="bg-gray-100 px-1 rounded text-xs">entityLink.target_entity_id</code>).
+                    No hardcodea ningún sistema: tú definís qué campos son <code className="bg-gray-100 px-1 rounded text-xs">source_*</code> y <code className="bg-gray-100 px-1 rounded text-xs">target_*</code>.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={entityLinking.enabled}
+                      onChange={(e) =>
+                        setEntityLinking((prev) => ({ ...prev, enabled: e.target.checked }))
+                      }
+                      className="rounded border-gray-300"
+                    />
+                    Habilitar Entity Linking en este flujo
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Si está deshabilitado, el flujo se comporta como hasta ahora (no se persisten mappings).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Key Template *
+                  </label>
+                  <input
+                    type="text"
+                    value={entityLinking.keyTemplate}
+                    onChange={(e) =>
+                      setEntityLinking((prev) => ({ ...prev, keyTemplate: e.target.value }))
+                    }
+                    placeholder="{{data.id}} ó {{data.id}}:{{now.date}}-{{now.hour}}"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Define la clave del mapping. Acepta <code className="bg-gray-100 px-1 rounded">{'{{data.*}}'}</code>,{' '}
+                    <code className="bg-gray-100 px-1 rounded">{'{{prev.*}}'}</code> y un objeto{' '}
+                    <code className="bg-gray-100 px-1 rounded">now</code> con{' '}
+                    <code className="bg-gray-100 px-1 rounded">now.date</code>,{' '}
+                    <code className="bg-gray-100 px-1 rounded">now.datetime</code>,{' '}
+                    <code className="bg-gray-100 px-1 rounded">now.hour</code>,{' '}
+                    <code className="bg-gray-100 px-1 rounded">now.iso</code>.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-md p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700">Origen (source)</h4>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">source_system</label>
+                      <input
+                        type="text"
+                        value={entityLinking.sourceSystem}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, sourceSystem: e.target.value }))
+                        }
+                        placeholder='literal:"erp" o {{data.system}}'
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">source_entity_type</label>
+                      <input
+                        type="text"
+                        value={entityLinking.sourceEntityType}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, sourceEntityType: e.target.value }))
+                        }
+                        placeholder="{{data.entityType}}"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">source_entity_id</label>
+                      <input
+                        type="text"
+                        value={entityLinking.sourceEntityId}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, sourceEntityId: e.target.value }))
+                        }
+                        placeholder="{{data.id}}"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">source_event_id (opcional)</label>
+                      <input
+                        type="text"
+                        value={entityLinking.sourceEventId}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, sourceEventId: e.target.value }))
+                        }
+                        placeholder="{{data.eventId}}"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-md p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700">Destino (target)</h4>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">target_system</label>
+                      <input
+                        type="text"
+                        value={entityLinking.targetSystem}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, targetSystem: e.target.value }))
+                        }
+                        placeholder='literal:"crm" o {{data.targetSystem}}'
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">target_entity_type</label>
+                      <input
+                        type="text"
+                        value={entityLinking.targetEntityType}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, targetEntityType: e.target.value }))
+                        }
+                        placeholder="{{data.entityType}}"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">target_entity_id</label>
+                      <input
+                        type="text"
+                        value={entityLinking.targetEntityId}
+                        onChange={(e) =>
+                          setEntityLinking((prev) => ({ ...prev, targetEntityId: e.target.value }))
+                        }
+                        placeholder="{{response.id}}"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Se evalúa después de la respuesta del destino. Acepta{' '}
+                        <code className="bg-gray-100 px-1 rounded">{'{{response.*}}'}</code>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <div className="flex">
+                    <Lightbulb className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium text-blue-800">Cómo se usa el mapping</h4>
+                      <ul className="mt-2 text-sm text-blue-700 list-disc list-inside space-y-1">
+                        <li>Se persiste un registro genérico con <code className="bg-blue-100 px-1 rounded">status</code> (<code className="bg-blue-100 px-1 rounded">pending</code> → <code className="bg-blue-100 px-1 rounded">linked</code>/<code className="bg-blue-100 px-1 rounded">failed</code>/<code className="bg-blue-100 px-1 rounded">retrying</code>), <code className="bg-blue-100 px-1 rounded">last_error</code> y <code className="bg-blue-100 px-1 rounded">retry_count</code>.</li>
+                        <li>Si configurás un <code className="bg-blue-100 px-1 rounded">postResponseAction</code>, podés usar <code className="bg-blue-100 px-1 rounded">{'{{entityLink.target_entity_id}}'}</code> para devolver el ID al origen.</li>
+                        <li>La granularidad la definís vos con el <code className="bg-blue-100 px-1 rounded">keyTemplate</code>: <code className="bg-blue-100 px-1 rounded">{'{{data.id}}'}</code> = 1 mapping por entidad,{' '}
+                          <code className="bg-blue-100 px-1 rounded">{'{{data.id}}:{{now.date}}'}</code> = 1 por entidad por día.
+                        </li>
+                        <li>Errores transitorios (timeouts, 429, 5xx) marcan <code className="bg-blue-100 px-1 rounded">retrying</code>; los funcionales marcan <code className="bg-blue-100 px-1 rounded">failed</code>.</li>
+                      </ul>
                     </div>
                   </div>
                 </div>

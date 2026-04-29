@@ -284,6 +284,55 @@ export async function POST(request) {
       );
     }
 
+    // Validar y normalizar bloque entityLinking (opcional)
+    let entityLinking;
+    if (body.entityLinking !== undefined && body.entityLinking !== null) {
+      if (typeof body.entityLinking !== 'object' || Array.isArray(body.entityLinking)) {
+        return NextResponse.json(
+          { error: 'Invalid entityLinking. Must be an object.' },
+          { status: 400 }
+        );
+      }
+
+      const enabled = Boolean(body.entityLinking.enabled);
+      const keyTemplate = body.entityLinking.keyTemplate;
+      if (enabled) {
+        if (typeof keyTemplate !== 'string' || keyTemplate.trim() === '') {
+          return NextResponse.json(
+            { error: 'Invalid entityLinking.keyTemplate. Must be a non-empty string when enabled.' },
+            { status: 400 }
+          );
+        }
+      }
+
+      const sanitizeStringField = (val) =>
+        typeof val === 'string' && val.trim() !== '' ? val : undefined;
+
+      const source = body.entityLinking.source && typeof body.entityLinking.source === 'object'
+        ? {
+            system: sanitizeStringField(body.entityLinking.source.system),
+            entityType: sanitizeStringField(body.entityLinking.source.entityType),
+            entityId: sanitizeStringField(body.entityLinking.source.entityId),
+            eventId: sanitizeStringField(body.entityLinking.source.eventId),
+          }
+        : undefined;
+
+      const target = body.entityLinking.target && typeof body.entityLinking.target === 'object'
+        ? {
+            system: sanitizeStringField(body.entityLinking.target.system),
+            entityType: sanitizeStringField(body.entityLinking.target.entityType),
+            entityId: sanitizeStringField(body.entityLinking.target.entityId),
+          }
+        : undefined;
+
+      entityLinking = {
+        enabled,
+        keyTemplate: enabled ? keyTemplate.trim() : keyTemplate,
+        source,
+        target,
+      };
+    }
+
     const flow = {
       id: body.id,
       name: body.name,
@@ -298,6 +347,7 @@ export async function POST(request) {
       conditions: body.conditions && Array.isArray(body.conditions) && body.conditions.length > 0 ? body.conditions : undefined,
       conditionFailureAction: body.conditionFailureAction || undefined,
       postResponseActions: body.postResponseActions && Array.isArray(body.postResponseActions) && body.postResponseActions.length > 0 ? body.postResponseActions : undefined,
+      entityLinking,
       ownerId: userId,
     };
 
@@ -409,6 +459,13 @@ export async function PUT(request) {
       conditions: originalFlow.conditions ? originalFlow.conditions.map(c => ({ ...c })) : undefined,
       conditionFailureAction: originalFlow.conditionFailureAction || undefined,
       postResponseActions: originalFlow.postResponseActions ? originalFlow.postResponseActions.map(a => ({ ...a })) : undefined,
+      entityLinking: originalFlow.entityLinking
+        ? {
+            ...originalFlow.entityLinking,
+            source: originalFlow.entityLinking.source ? { ...originalFlow.entityLinking.source } : undefined,
+            target: originalFlow.entityLinking.target ? { ...originalFlow.entityLinking.target } : undefined,
+          }
+        : undefined,
       ownerId: userId,
     };
 
