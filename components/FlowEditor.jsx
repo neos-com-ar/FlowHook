@@ -202,6 +202,21 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, flow?.id, projectId]);
 
+  const hasInvalidIncomingHeaderTemplateCase = (value) => {
+    if (typeof value !== 'string' || !value.includes('{{')) {
+      return false;
+    }
+
+    const matches = value.match(/\{\{\s*headers\.([a-zA-Z0-9_-]+)\s*\}\}/g) || [];
+    return matches.some((match) => {
+      const keyMatch = match.match(/\{\{\s*headers\.([a-zA-Z0-9_-]+)\s*\}\}/);
+      if (!keyMatch || !keyMatch[1]) {
+        return false;
+      }
+      return keyMatch[1] !== keyMatch[1].toLowerCase();
+    });
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -1183,17 +1198,25 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                           <span className="text-gray-500">:</span>
-                          <input
-                            type="text"
-                            value={entry.value}
-                            onChange={(e) => {
-                              const newHeaders = [...destinationHeaders];
-                              newHeaders[index].value = e.target.value;
-                              setDestinationHeaders(newHeaders);
-                            }}
-                            placeholder="Valor (ej: pablobruno)"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                          />
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              value={entry.value}
+                              onChange={(e) => {
+                                const newHeaders = [...destinationHeaders];
+                                newHeaders[index].value = e.target.value;
+                                setDestinationHeaders(newHeaders);
+                              }}
+                              placeholder="Valor (ej: pablobruno)"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            />
+                            {hasInvalidIncomingHeaderTemplateCase(entry.value) && (
+                              <p className="mt-1 text-xs text-amber-700">
+                                Usá headers en minúscula en templates. Ejemplo correcto:{' '}
+                                <code className="bg-amber-100 px-1 rounded">{'{{headers.authorization}}'}</code>
+                              </p>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => {
@@ -1568,17 +1591,25 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                   />
                                   <span className="text-gray-500">:</span>
-                                  <input
-                                    type="text"
-                                    value={entry.value}
-                                    onChange={(e) => {
-                                      const newEndpoints = [...prevEndpoints];
-                                      newEndpoints[endpointIndex].headerEntries[index].value = e.target.value;
-                                      setPrevEndpoints(newEndpoints);
-                                    }}
-                                    placeholder="Valor (ej: Bearer token123)"
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                                  />
+                                  <div className="flex-1">
+                                    <input
+                                      type="text"
+                                      value={entry.value}
+                                      onChange={(e) => {
+                                        const newEndpoints = [...prevEndpoints];
+                                        newEndpoints[endpointIndex].headerEntries[index].value = e.target.value;
+                                        setPrevEndpoints(newEndpoints);
+                                      }}
+                                      placeholder="Valor (ej: Bearer token123)"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    />
+                                    {hasInvalidIncomingHeaderTemplateCase(entry.value) && (
+                                      <p className="mt-1 text-xs text-amber-700">
+                                        Usá headers en minúscula en templates. Ejemplo correcto:{' '}
+                                        <code className="bg-amber-100 px-1 rounded">{'{{headers.authorization}}'}</code>
+                                      </p>
+                                    )}
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2407,17 +2438,25 @@ Valor fuente: literal:[
                                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                     />
                                     <span className="text-gray-500">:</span>
-                                    <input
-                                      type="text"
-                                      value={entry.value}
-                                      onChange={(e) => {
-                                        const newActions = [...postResponseActions];
-                                        newActions[actionIndex].headerEntries[index].value = e.target.value;
-                                        setPostResponseActions(newActions);
-                                      }}
-                                      placeholder="Valor (ej: Bearer token123)"
-                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                                    />
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={entry.value}
+                                        onChange={(e) => {
+                                          const newActions = [...postResponseActions];
+                                          newActions[actionIndex].headerEntries[index].value = e.target.value;
+                                          setPostResponseActions(newActions);
+                                        }}
+                                        placeholder="Valor (ej: Bearer token123)"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                      />
+                                      {hasInvalidIncomingHeaderTemplateCase(entry.value) && (
+                                        <p className="mt-1 text-xs text-amber-700">
+                                          Usá headers en minúscula en templates. Ejemplo correcto:{' '}
+                                          <code className="bg-amber-100 px-1 rounded">{'{{headers.authorization}}'}</code>
+                                        </p>
+                                      )}
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => {
