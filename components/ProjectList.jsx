@@ -210,7 +210,7 @@ export default function ProjectList() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
           onClick={() => setShowOrphanFlows(false)}
-          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors inline-flex items-center gap-1 font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver a proyectos</span>
@@ -252,14 +252,14 @@ export default function ProjectList() {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => handleOpenPermissions(selectedProject.id)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors inline-flex items-center gap-2 font-medium"
               >
                 <Users className="w-4 h-4" />
                 <span>Permisos</span>
               </button>
               <button
                 onClick={() => handleEditProject(selectedProject)}
-                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors inline-flex items-center gap-2 font-medium"
               >
                 <Pencil className="w-4 h-4" />
                 <span>Editar</span>
@@ -281,7 +281,7 @@ export default function ProjectList() {
         <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
         <button
           onClick={handleNewProject}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors font-medium"
         >
           + Nuevo Proyecto
         </button>
@@ -301,7 +301,7 @@ export default function ProjectList() {
             </div>
             <button
               onClick={() => setShowOrphanFlows(true)}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors font-medium"
             >
               Ver Flujos
             </button>
@@ -310,11 +310,11 @@ export default function ProjectList() {
       )}
 
       {projects.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
           <p className="text-gray-500 mb-4">No tienes proyectos configurados aún.</p>
           <button
             onClick={handleNewProject}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors font-medium"
           >
             Crear tu primer proyecto
           </button>
@@ -328,7 +328,7 @@ export default function ProjectList() {
             return (
               <div
                 key={project.id}
-                className="rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                className="rounded-xl border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer"
                 style={{ backgroundColor: backgroundColor }}
                 onClick={() => setSelectedProject(project)}
               >
@@ -361,13 +361,13 @@ export default function ProjectList() {
                   <span>Creado: {new Date(project.createdAt).toLocaleDateString()}</span>
                 </div>
 
-                <div className="flex space-x-2 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4 border-t border-gray-200">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedProject(project);
                     }}
-                    className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                    className="w-full px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors inline-flex items-center justify-center gap-1"
                   >
                     <FolderOpen className="w-4 h-4" />
                     <span>Abrir</span>
@@ -377,30 +377,33 @@ export default function ProjectList() {
                       e.stopPropagation();
                       handleOpenPermissions(project.id);
                     }}
-                    className="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 transition-colors inline-flex items-center justify-center gap-1"
                     title="Gestionar permisos"
                   >
                     <Users className="w-4 h-4" />
+                    <span>Permisos</span>
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditProject(project);
                     }}
-                    className="px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
+                    className="w-full px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors inline-flex items-center justify-center gap-1"
                     title="Editar proyecto"
                   >
                     <Pencil className="w-4 h-4" />
+                    <span>Editar</span>
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteProject(project.id);
                     }}
-                    className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+                    className="w-full px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors inline-flex items-center justify-center gap-1"
                     title="Eliminar proyecto"
                   >
                     <Trash2 className="w-4 h-4" />
+                    <span>Eliminar</span>
                   </button>
                 </div>
               </div>

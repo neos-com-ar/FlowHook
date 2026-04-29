@@ -589,7 +589,7 @@ export default function FlowList({ projectId, projectColor }) {
           <button
             onClick={handleExportFlows}
             disabled={flows.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 font-medium"
             title="Exportar todos los flujos a un archivo JSON"
           >
             <Download className="w-4 h-4" />
@@ -597,7 +597,7 @@ export default function FlowList({ projectId, projectColor }) {
           </button>
           <button
             onClick={handleImportClick}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors inline-flex items-center gap-2 font-medium"
             title="Importar flujos desde un archivo JSON"
           >
             <Upload className="w-4 h-4" />
@@ -605,7 +605,7 @@ export default function FlowList({ projectId, projectColor }) {
           </button>
           <button
             onClick={handleNewFlow}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors font-medium"
           >
             + Nuevo Flujo
           </button>
@@ -613,11 +613,11 @@ export default function FlowList({ projectId, projectColor }) {
       </div>
 
       {flows.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
           <p className="text-gray-500 mb-4">No tienes flujos configurados aún.</p>
           <button
             onClick={handleNewFlow}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors font-medium"
           >
             Crear tu primer flujo
           </button>
@@ -629,7 +629,7 @@ export default function FlowList({ projectId, projectColor }) {
             return (
               <div
                 key={flow.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">{flow.name}</h2>
@@ -680,43 +680,43 @@ export default function FlowList({ projectId, projectColor }) {
                   </div>
                 )}
 
-                <div className="flex flex-col space-y-2 mt-4">
-                  <div className="flex space-x-2">
+                <div className="flex flex-col gap-2 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       onClick={() => handleEdit(flow)}
-                      className="flex-1 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors inline-flex items-center justify-center gap-1"
                     >
-                      <Pencil className="w-4 h-4 mr-1 inline" />
+                      <Pencil className="w-4 h-4" />
                       Editar
                     </button>
                     <button
                       onClick={() => handleDuplicateClick(flow)}
-                      className="flex-1 px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors inline-flex items-center justify-center gap-1"
                       title="Duplicar flujo"
                     >
-                      <Copy className="w-4 h-4 mr-1 inline" />
+                      <Copy className="w-4 h-4" />
                       Duplicar
                     </button>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     <Link
                       href={`/dashboard/webhooks?flowId=${flow.id}`}
-                      className="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-center"
+                      className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors inline-flex items-center justify-center gap-1 text-center"
                     >
-                      <BarChart3 className="w-4 h-4 mr-1 inline" />
+                      <BarChart3 className="w-4 h-4" />
                       Ver Historial
                     </Link>
                     <button
                       onClick={() => handleMoveClick(flow)}
-                      className="px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors inline-flex items-center justify-center gap-1"
                       title="Mover a otro proyecto"
                     >
-                      <Package className="w-4 h-4 mr-1 inline" />
+                      <Package className="w-4 h-4" />
                       Mover
                     </button>
                     <button
                       onClick={() => handleExportSingleFlow(flow)}
-                      className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors flex items-center gap-1"
+                      className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors inline-flex items-center justify-center gap-1"
                       title="Exportar este flujo"
                     >
                       <Download className="w-4 h-4" />
@@ -724,7 +724,7 @@ export default function FlowList({ projectId, projectColor }) {
                     </button>
                     <button
                       onClick={() => handleDelete(flow.id)}
-                      className="flex-1 px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center gap-1"
+                      className="w-full px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors inline-flex items-center justify-center gap-1"
                     >
                       <Trash2 className="w-4 h-4" />
                       Eliminar
@@ -739,8 +739,8 @@ export default function FlowList({ projectId, projectColor }) {
 
       {/* Modal de importar flujos */}
       {importModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">
                 Importar Flujos
@@ -848,8 +848,8 @@ export default function FlowList({ projectId, projectColor }) {
 
       {/* Modal de duplicar flujo */}
       {duplicatingFlow && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">
                 Duplicar Flujo
@@ -940,8 +940,8 @@ export default function FlowList({ projectId, projectColor }) {
 
       {/* Modal de mover flujo */}
       {moveModalOpen && movingFlow && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">
                 Mover Flujo

@@ -63,6 +63,10 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     targetEntityType: '',
     targetEntityId: '',
   });
+  const [entityMappings, setEntityMappings] = useState([]);
+  const [entityMappingsLoading, setEntityMappingsLoading] = useState(false);
+  const [entityMappingsError, setEntityMappingsError] = useState('');
+  const [entityMappingSearch, setEntityMappingSearch] = useState('');
 
   useEffect(() => {
     if (flow) {
@@ -190,6 +194,13 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       }
     }
   }, [flow]);
+
+  useEffect(() => {
+    if (activeTab === 'entityLinking' && flow?.id && projectId) {
+      fetchEntityMappings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, flow?.id, projectId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -825,17 +836,47 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     }
   };
 
+  const fetchEntityMappings = async () => {
+    if (!flow?.id || !projectId) return;
+
+    setEntityMappingsLoading(true);
+    setEntityMappingsError('');
+    try {
+      const params = new URLSearchParams({
+        projectId,
+        flowId: flow.id,
+        limit: '50',
+      });
+      if (entityMappingSearch.trim()) {
+        params.set('mappingKey', entityMappingSearch.trim());
+      }
+
+      const response = await fetch(`/api/entity-linking?${params.toString()}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al obtener entity mappings');
+      }
+      setEntityMappings(Array.isArray(data.mappings) ? data.mappings : []);
+    } catch (error) {
+      console.error('Error fetching entity mappings:', error);
+      setEntityMappingsError(error.message || 'Error al obtener mappings');
+      setEntityMappings([]);
+    } finally {
+      setEntityMappingsLoading(false);
+    }
+  };
+
   if (!projectId && !flow?.projectId) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
           onClick={onCancel}
-          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+          className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors inline-flex items-center gap-1 font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver</span>
         </button>
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">Error: No se especificó el proyecto.</p>
           </div>
@@ -848,12 +889,12 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onCancel}
-        className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
+        className="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors inline-flex items-center gap-1 font-medium"
       >
         <span>←</span>
         <span>Volver</span>
       </button>
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             {flow ? 'Editar Flujo' : 'Nuevo Flujo'}
@@ -863,12 +904,13 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Pestañas */}
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <div className="overflow-x-auto overflow-y-hidden">
+              <nav className="-mb-px flex min-w-max gap-6 pr-2" aria-label="Tabs">
               <button
                 type="button"
                 onClick={() => setActiveTab('config')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'config'
                       ? 'border-indigo-500 text-indigo-600'
@@ -883,7 +925,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 type="button"
                 onClick={() => setActiveTab('prev')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'prev'
                       ? 'border-indigo-500 text-indigo-600'
@@ -903,7 +945,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 type="button"
                 onClick={() => setActiveTab('conditions')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'conditions'
                       ? 'border-indigo-500 text-indigo-600'
@@ -923,7 +965,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 type="button"
                 onClick={() => setActiveTab('mapping')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'mapping'
                       ? 'border-indigo-500 text-indigo-600'
@@ -943,7 +985,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 type="button"
                 onClick={() => setActiveTab('actions')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'actions'
                       ? 'border-indigo-500 text-indigo-600'
@@ -963,7 +1005,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                 type="button"
                 onClick={() => setActiveTab('entityLinking')}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === 'entityLinking'
                       ? 'border-indigo-500 text-indigo-600'
@@ -979,7 +1021,8 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                   </span>
                 )}
               </button>
-            </nav>
+              </nav>
+            </div>
           </div>
 
           {/* Contenido de las pestañas */}
@@ -2584,6 +2627,90 @@ Valor fuente: literal:[
                   </div>
                 </div>
 
+                <div className="bg-white border border-gray-200 rounded-md p-4">
+                  <div className="flex flex-col md:flex-row md:items-end gap-3 md:justify-between mb-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700">
+                        Registros creados (entity mappings)
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Consulta mappings persistidos para este flujo. Si indicas una `mapping_key`, filtra por esa clave exacta.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={entityMappingSearch}
+                        onChange={(e) => setEntityMappingSearch(e.target.value)}
+                        placeholder="mapping_key exacta (opcional)"
+                        className="w-64 max-w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={fetchEntityMappings}
+                        disabled={!flow?.id || !projectId || entityMappingsLoading}
+                        className="inline-flex items-center px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 mr-1 ${entityMappingsLoading ? 'animate-spin' : ''}`} />
+                        Refrescar
+                      </button>
+                    </div>
+                  </div>
+
+                  {!flow?.id ? (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      Guarda el flujo primero para poder consultar registros persistidos.
+                    </div>
+                  ) : entityMappingsError ? (
+                    <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                      {entityMappingsError}
+                    </div>
+                  ) : entityMappings.length === 0 ? (
+                    <div className="text-xs text-gray-500 border border-dashed border-gray-300 rounded p-3">
+                      No hay registros para mostrar.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-gray-200 rounded">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            <th className="text-left px-2 py-2">mapping_key</th>
+                            <th className="text-left px-2 py-2">status</th>
+                            <th className="text-left px-2 py-2">source_event_id</th>
+                            <th className="text-left px-2 py-2">target_entity_id</th>
+                            <th className="text-left px-2 py-2">retry_count</th>
+                            <th className="text-left px-2 py-2">updated_at</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entityMappings.map((m) => (
+                            <tr key={`${m.mapping_key}-${m.updated_at || ''}`} className="border-t border-gray-100">
+                              <td className="px-2 py-2 font-mono text-gray-700">{m.mapping_key}</td>
+                              <td className="px-2 py-2">
+                                <span className={`px-2 py-0.5 rounded-full ${
+                                  m.status === 'linked'
+                                    ? 'bg-green-100 text-green-700'
+                                    : m.status === 'failed'
+                                      ? 'bg-red-100 text-red-700'
+                                      : m.status === 'retrying'
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {m.status || '-'}
+                                </span>
+                              </td>
+                              <td className="px-2 py-2 font-mono">{m.source_event_id || '-'}</td>
+                              <td className="px-2 py-2 font-mono">{m.target_entity_id || '-'}</td>
+                              <td className="px-2 py-2">{m.retry_count ?? 0}</td>
+                              <td className="px-2 py-2 font-mono text-gray-500">{m.updated_at || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                   <div className="flex">
                     <Lightbulb className="w-5 h-5 text-blue-400 flex-shrink-0" />
@@ -2624,8 +2751,8 @@ Valor fuente: literal:[
 
           {/* Modal de mapeo de valores */}
           {showMappingModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
                     <LinkIcon className="w-5 h-5 mr-2" />
@@ -2739,8 +2866,8 @@ Valor fuente: literal:[
 
           {/* Modal de valor literal */}
           {showLiteralModal !== null && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-gray-900">
                     ✏️ Configurar Valor Literal
@@ -2930,7 +3057,7 @@ Valor fuente: literal:[
 
           {/* Modal de IA */}
           {showAIModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-gray-900">
