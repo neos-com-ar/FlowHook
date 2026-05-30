@@ -64,7 +64,6 @@ export default function ProjectEditor({ project, workspaceId, onSave, onCancel }
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isPersonal: true,
     color: '#3B82F6',
     icon: 'Folder',
   });
@@ -81,7 +80,6 @@ export default function ProjectEditor({ project, workspaceId, onSave, onCancel }
       setFormData({
         name: project.name || '',
         description: project.description || '',
-        isPersonal: project.isPersonal !== undefined ? project.isPersonal : true,
         color: project.color || '#3B82F6',
         icon: project.icon || 'Folder',
       });
@@ -263,24 +261,6 @@ export default function ProjectEditor({ project, workspaceId, onSave, onCancel }
               placeholder="#3B82F6"
               pattern="^#[0-9A-Fa-f]{6}$"
             />
-          </div>
-
-          <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                name="isPersonal"
-                checked={formData.isPersonal}
-                onChange={handleInputChange}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-700">
-                Proyecto personal (no compartido)
-              </span>
-            </label>
-            <p className="mt-1 text-xs text-gray-500">
-              Los proyectos compartidos pueden tener múltiples colaboradores
-            </p>
           </div>
 
           {project && moveTargets.length > 0 && (

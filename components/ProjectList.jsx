@@ -287,10 +287,10 @@ export default function ProjectList() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
           {activeWorkspace && (
-            <p className="text-sm text-gray-500 mt-1">{activeWorkspace.name}</p>
+            <p className="text-sm font-medium text-indigo-600 mb-1">{activeWorkspace.name}</p>
           )}
+          <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
         </div>
         <button
           onClick={handleNewProject}
@@ -335,9 +335,9 @@ export default function ProjectList() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
-            const isPersonal = project.isPersonal !== false;
             const projectColor = project.color || '#3B82F6';
             const backgroundColor = hexToRgba(projectColor, 0.1);
+            const isShared = project.isShared || (project.memberCount ?? 0) > 1;
             return (
               <div
                 key={project.id}
@@ -350,9 +350,9 @@ export default function ProjectList() {
                     <ProjectIcon iconName={project.icon} className="w-8 h-8" />
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900">{project.name}</h2>
-                      {!isPersonal && (
+                      {isShared && (
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          Compartido
+                          Compartido · {project.memberCount} miembros
                         </span>
                       )}
                     </div>

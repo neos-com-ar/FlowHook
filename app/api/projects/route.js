@@ -10,6 +10,7 @@ import {
   checkProjectAccess,
   ensureUserWorkspaceSetup,
   getPersonalWorkspace,
+  getProjectPermissions,
 } from '@/lib/db';
 
 // Marcar como dinámico porque usa headers (getServerSession)
@@ -38,7 +39,19 @@ export async function GET(request) {
       ? await getUserProjects(userId, { workspaceId })
       : await getUserProjects(userId);
 
-    return NextResponse.json({ projects });
+    const enrichedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const permissions = await getProjectPermissions(project.id);
+        const memberCount = permissions.length;
+        return {
+          ...project,
+          memberCount,
+          isShared: memberCount > 1,
+        };
+      }),
+    );
+
+    return NextResponse.json({ projects: enrichedProjects });
   } catch (error) {
     console.error('Error getting projects:', error);
     return NextResponse.json(
@@ -175,7 +188,6 @@ export async function PUT(request) {
     if (body.description !== undefined) updates.description = body.description;
     if (body.color !== undefined) updates.color = body.color;
     if (body.icon !== undefined) updates.icon = body.icon;
-    if (body.isPersonal !== undefined) updates.isPersonal = body.isPersonal;
 
     const updated = await updateProject(projectId, updates);
 
