@@ -1,0 +1,57 @@
+{
+  "personalWorkspaces": [
+    {
+      "userId": "usr_1762829097275_7dmgfvnmr",
+      "workspaceId": "ws_1780183693858_kpkun6k0a"
+    },
+    {
+      "userId": "usr_1766576364990_97qqegpob",
+      "workspaceId": "ws_1780184016660_02d5gx0m5"
+    },
+    {
+      "userId": "usr_1780062710287_jekwmgacp",
+      "workspaceId": "ws_1780184016894_6rz5qkcjl"
+    }
+  ],
+  "teamWorkspaces": [
+    {
+      "workspaceId": "ws_1780184017884_p6q8ozhrl",
+      "name": "Equipo compartido",
+      "fingerprint": "usr_1762829097275_7dmgfvnmr:owner|usr_1780062710287_jekwmgacp:editor",
+      "projectCount": 4
+    }
+  ],
+  "projectsAssigned": [
+    {
+      "projectId": "proj_1762878127701_jsbf66kwf",
+      "workspaceId": "ws_1780184017884_p6q8ozhrl",
+      "type": "team"
+    },
+    {
+      "projectId": "proj_1764878305778_h64jl5v4r",
+      "workspaceId": "ws_1780184017884_p6q8ozhrl",
+      "type": "team"
+    },
+    {
+      "projectId": "proj_1776208048477_0ko3ti23j",
+      "workspaceId": "ws_1780184017884_p6q8ozhrl",
+      "type": "team"
+    },
+    {
+      "projectId": "proj_1776714090907_0ev1kuy3u",
+      "workspaceId": "ws_1780184017884_p6q8ozhrl",
+      "type": "team"
+    },
+    {
+      "projectId": "proj_1766576375558_vk81f8crv",
+      "workspaceId": "ws_1780184016660_02d5gx0m5",
+      "type": "personal"
+    }
+  ],
+  "movedFromPersonal": [
+    "proj_1762878127701_jsbf66kwf",
+    "proj_1764878305778_h64jl5v4r",
+    "proj_1776208048477_0ko3ti23j",
+    "proj_1776714090907_0ev1kuy3u"
+  ]
+}

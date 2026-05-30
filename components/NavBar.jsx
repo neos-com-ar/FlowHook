@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import ChangePasswordModal from './ChangePasswordModal';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 export default function NavBar() {
   const { data: session, status } = useSession();
@@ -97,6 +98,7 @@ export default function NavBar() {
                 <div className="text-gray-500">Cargando...</div>
               ) : session ? (
                 <>
+                  <WorkspaceSwitcher />
                   <Link
                     href="/dashboard/webhooks"
                     className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"

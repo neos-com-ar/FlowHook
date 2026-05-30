@@ -289,7 +289,7 @@ export default function ProjectList() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
           {activeWorkspace && (
-            <p className="text-sm text-gray-500 mt-1">Workspace: {activeWorkspace.name}</p>
+            <p className="text-sm text-gray-500 mt-1">{activeWorkspace.name}</p>
           )}
         </div>
         <button

@@ -4,14 +4,42 @@
  * - Copia entity mappings a claves por projectId
  * - Reconstruye índice user_project_access
  *
- * Ejecutar: node scripts/migrate-phase2-data.js
+ * Ejecutar: node scripts/migrate-phase2-data.mjs
+ *           npm run migrate:phase2
  */
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.join(__dirname, '..');
+
+function loadEnvLocal() {
+  const envPath = path.join(rootDir, '.env.local');
+  if (!fs.existsSync(envPath)) return;
+
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
+loadEnvLocal();
 
 async function migrateLocalFile() {
-  const dataPath = path.join(process.cwd(), 'tmp', 'data.json');
+  const dataPath = path.join(rootDir, 'tmp', 'data.json');
   if (!fs.existsSync(dataPath)) {
     console.log('No hay tmp/data.json');
     return;
@@ -97,6 +125,7 @@ async function migrateKv() {
     return migrateLocalFile();
   }
 
+  console.log('Conectando a KV...');
   const kv = createClient({ url: kvUrl, token: kvToken });
   const { getProject, rebuildUserProjectAccessIndex } = await import('../lib/db.js');
 
