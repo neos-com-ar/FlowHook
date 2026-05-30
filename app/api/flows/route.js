@@ -12,6 +12,7 @@ import {
   deleteFlowFromProject,
   checkProjectAccess,
   getFlow as getFlowFromProject,
+  findFlowIdConflictInOtherProject,
 } from '@/lib/db';
 
 // Marcar como dinámico porque usa headers (getServerSession)
@@ -115,6 +116,23 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Invalid flow ID format. Only alphanumeric characters, hyphens and underscores are allowed.' },
         { status: 400 }
+      );
+    }
+
+    const flowIdConflict = await findFlowIdConflictInOtherProject(
+      userId,
+      body.id,
+      body.projectId,
+    );
+    const projectFlows = await getProjectFlows(body.projectId);
+    const isExistingFlowInProject = projectFlows.some((flow) => flow.id === body.id);
+
+    if (flowIdConflict && !isExistingFlowInProject) {
+      return NextResponse.json(
+        {
+          error: `El ID del flujo ya existe en el proyecto "${flowIdConflict.projectName}". Usa un ID diferente.`,
+        },
+        { status: 400 },
       );
     }
 
@@ -441,6 +459,20 @@ export async function PUT(request) {
       return NextResponse.json(
         { error: 'A flow with this ID already exists in this project' },
         { status: 400 }
+      );
+    }
+
+    const flowIdConflict = await findFlowIdConflictInOtherProject(
+      userId,
+      newId,
+      projectId,
+    );
+    if (flowIdConflict) {
+      return NextResponse.json(
+        {
+          error: `El ID del flujo ya existe en el proyecto "${flowIdConflict.projectName}". Usa un ID diferente.`,
+        },
+        { status: 400 },
       );
     }
 

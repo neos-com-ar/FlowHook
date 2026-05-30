@@ -700,7 +700,7 @@ export default function FlowList({ projectId, projectColor }) {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     <Link
-                      href={`/dashboard/webhooks?flowId=${flow.id}`}
+                      href={`/dashboard/webhooks?${flow.projectId ? `projectId=${encodeURIComponent(flow.projectId)}&` : ''}flowId=${encodeURIComponent(flow.id)}`}
                       className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors inline-flex items-center justify-center gap-1 text-center"
                     >
                       <BarChart3 className="w-4 h-4" />

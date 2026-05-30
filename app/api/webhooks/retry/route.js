@@ -33,7 +33,9 @@ export async function POST(request) {
     }
 
     // Buscar el webhook original en el historial de ese flujo
-    const { webhooks } = await getWebhooks(userId, flowId, 1000, 0);
+    const { webhooks } = await getWebhooks(userId, flowId, 1000, 0, {
+      projectId: projectId || null,
+    });
     const originalWebhook =
       webhooks.find((w) => w.id === webhookId) || null;
 
@@ -92,6 +94,7 @@ export async function POST(request) {
       flowId,
       webhookId,
       () => webhookRecord,
+      projectId || null,
     );
 
     if (!updated) {

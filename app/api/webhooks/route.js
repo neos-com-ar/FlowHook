@@ -20,6 +20,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const flowId = searchParams.get('flowId');
+    const projectId = searchParams.get('projectId');
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const status = searchParams.get('status');
@@ -35,6 +36,7 @@ export async function GET(request) {
         status,
         startDate,
         endDate,
+        projectId: projectId || null,
       }
     );
 

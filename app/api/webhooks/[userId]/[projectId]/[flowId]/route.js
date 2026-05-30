@@ -107,7 +107,7 @@ export async function POST(request, { params }) {
         manual: false,
       });
 
-      await saveWebhook(userId, flowId, webhookRecord);
+      await saveWebhook(userId, flowId, webhookRecord, projectId);
 
       return NextResponse.json(
         {

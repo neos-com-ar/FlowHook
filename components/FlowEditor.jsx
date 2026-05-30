@@ -466,7 +466,15 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       // 1. Obtener ejemplo de origen desde el historial de webhooks
       if (flow?.id) {
         try {
-          const webhooksResponse = await fetch(`/api/webhooks?flowId=${flow.id}&limit=1`);
+          const projectIdParam = projectId || flow?.projectId;
+          const webhooksQuery = new URLSearchParams({
+            flowId: flow.id,
+            limit: '1',
+          });
+          if (projectIdParam) {
+            webhooksQuery.set('projectId', projectIdParam);
+          }
+          const webhooksResponse = await fetch(`/api/webhooks?${webhooksQuery.toString()}`);
           if (webhooksResponse.ok) {
             const webhooksData = await webhooksResponse.json();
             if (webhooksData.webhooks && webhooksData.webhooks.length > 0) {

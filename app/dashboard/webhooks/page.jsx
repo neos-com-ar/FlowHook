@@ -12,12 +12,50 @@ import {
   Copy,
 } from 'lucide-react';
 
+function buildFlowFilterValue(flow) {
+  return `${flow.projectId || 'legacy'}:${flow.id}`;
+}
+
+function parseFlowFilterValue(value) {
+  if (!value) {
+    return { projectId: null, flowId: null };
+  }
+
+  const separatorIndex = value.indexOf(':');
+  if (separatorIndex === -1) {
+    return { projectId: null, flowId: value };
+  }
+
+  const projectId = value.slice(0, separatorIndex);
+  const flowId = value.slice(separatorIndex + 1);
+
+  return {
+    projectId: projectId === 'legacy' ? null : projectId,
+    flowId,
+  };
+}
+
+function getInitialFlowFilterFromUrl() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const flowIdFromUrl = urlParams.get('flowId');
+  if (!flowIdFromUrl) {
+    return null;
+  }
+
+  const projectIdFromUrl = urlParams.get('projectId');
+  return `${projectIdFromUrl || 'legacy'}:${flowIdFromUrl}`;
+}
+
 export default function WebhooksPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFlowId, setSelectedFlowId] = useState(null);
+  const [selectedFlowKey, setSelectedFlowKey] = useState(getInitialFlowFilterFromUrl);
   const [flows, setFlows] = useState([]);
   const [expandedWebhook, setExpandedWebhook] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -42,12 +80,6 @@ export default function WebhooksPage() {
   useEffect(() => {
     if (session) {
       fetchFlows();
-      // Obtener flowId de la URL si existe
-      const urlParams = new URLSearchParams(window.location.search);
-      const flowIdFromUrl = urlParams.get('flowId');
-      if (flowIdFromUrl) {
-        setSelectedFlowId(flowIdFromUrl);
-      }
     }
   }, [session]);
 
@@ -55,7 +87,7 @@ export default function WebhooksPage() {
     if (session) {
       fetchWebhooks();
     }
-  }, [session, selectedFlowId, currentPage, statusFilter, startDate, endDate]);
+  }, [session, selectedFlowKey, currentPage, statusFilter, startDate, endDate]);
 
   const fetchFlows = async () => {
     try {
@@ -81,8 +113,12 @@ export default function WebhooksPage() {
       const params = new URLSearchParams();
       params.set('limit', pageSize.toString());
       params.set('offset', offset.toString());
-      if (selectedFlowId) {
-        params.set('flowId', selectedFlowId);
+      const { projectId, flowId } = parseFlowFilterValue(selectedFlowKey);
+      if (flowId) {
+        params.set('flowId', flowId);
+      }
+      if (projectId) {
+        params.set('projectId', projectId);
       }
       if (statusFilter) {
         params.set('status', statusFilter);
@@ -253,16 +289,16 @@ export default function WebhooksPage() {
               Filtrar por flujo:
             </label>
             <select
-              value={selectedFlowId || ''}
+              value={selectedFlowKey || ''}
               onChange={(e) => {
-                setSelectedFlowId(e.target.value || null);
+                setSelectedFlowKey(e.target.value || null);
                 setCurrentPage(1); // Resetear a la primera página al cambiar el filtro
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Todos los flujos</option>
               {flows.map((flow) => (
-                <option key={flow.id} value={flow.id}>
+                <option key={buildFlowFilterValue(flow)} value={buildFlowFilterValue(flow)}>
                   {flow.projectName ? `${flow.projectName} - ` : ''}
                   {flow.name} ({flow.id})
                 </option>
