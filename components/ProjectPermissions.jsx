@@ -160,6 +160,10 @@ export default function ProjectPermissions({ projectId, onClose }) {
           </button>
         </div>
 
+        <p className="text-xs text-gray-500 mb-4">
+          Los usuarios deben ser miembros del workspace del proyecto. Si no lo son, se agregarán automáticamente como viewer.
+        </p>
+
         {canManage && (
           <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-md">
             <h3 className="text-sm font-medium text-indigo-900 mb-3">

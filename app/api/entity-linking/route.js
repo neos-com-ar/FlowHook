@@ -54,6 +54,7 @@ export async function GET(request) {
     const mappings = await listEntityMappings(userId, flowId, {
       mappingKey,
       limit,
+      projectId,
     });
 
     return NextResponse.json({

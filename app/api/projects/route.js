@@ -8,6 +8,8 @@ import {
   deleteProject,
   getProject,
   checkProjectAccess,
+  ensureUserWorkspaceSetup,
+  getPersonalWorkspace,
 } from '@/lib/db';
 
 // Marcar como dinámico porque usa headers (getServerSession)
@@ -27,7 +29,14 @@ export async function GET(request) {
     }
 
     const userId = session.user.id;
-    const projects = await getUserProjects(userId);
+    const { searchParams } = new URL(request.url);
+    const workspaceId = searchParams.get('workspaceId');
+
+    await ensureUserWorkspaceSetup(userId);
+
+    const projects = workspaceId
+      ? await getUserProjects(userId, { workspaceId })
+      : await getUserProjects(userId);
 
     return NextResponse.json({ projects });
   } catch (error) {
@@ -77,7 +86,22 @@ export async function POST(request) {
       );
     }
 
+    await ensureUserWorkspaceSetup(userId);
+
+    let workspaceId = body.workspaceId;
+    if (!workspaceId) {
+      const personal = await getPersonalWorkspace(userId);
+      workspaceId = personal?.id;
+    }
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: 'Missing required field: workspaceId' },
+        { status: 400 }
+      );
+    }
+
     const project = await createProject(userId, {
+      workspaceId,
       name: body.name.trim(),
       description: body.description || '',
       isPersonal: body.isPersonal !== undefined ? body.isPersonal : true,

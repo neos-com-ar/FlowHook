@@ -1,6 +1,7 @@
 'use client';
 
 import { SessionProvider } from 'next-auth/react';
+import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
 
 export default function Providers({ children }) {
   return (
@@ -9,7 +10,9 @@ export default function Providers({ children }) {
       refetchOnMount={false}
       refetchInterval={0}
     >
-      {children}
+      <WorkspaceProvider>
+        {children}
+      </WorkspaceProvider>
     </SessionProvider>
   );
 }

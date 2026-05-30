@@ -74,7 +74,7 @@ const hexToRgba = (hex, opacity) => {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
-export default function FlowList({ projectId, projectColor }) {
+export default function FlowList({ projectId, projectColor, workspaceId }) {
   const { data: session } = useSession();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -299,12 +299,18 @@ export default function FlowList({ projectId, projectColor }) {
     fetchFlows();
   };
 
-  const getWebhookUrl = (flowId) => {
-    if (!session?.user?.id) return '';
-    if (!projectId) return ''; // Si no hay projectId, no se puede generar la URL
+  const getWebhookUrl = (flowId, legacy = false) => {
+    if (!projectId) return '';
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${baseUrl}/api/webhooks/${session.user.id}/${projectId}/${flowId}`;
+    if (legacy) {
+      if (!session?.user?.id) return '';
+      return `${baseUrl}/api/webhooks/${session.user.id}/${projectId}/${flowId}`;
+    }
+    if (!workspaceId) return '';
+    return `${baseUrl}/api/webhooks/${workspaceId}/${projectId}/${flowId}`;
   };
+
+  const getLegacyWebhookUrl = (flowId) => getWebhookUrl(flowId, true);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -626,6 +632,7 @@ export default function FlowList({ projectId, projectColor }) {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {flows.map((flow) => {
             const webhookUrl = getWebhookUrl(flow.id);
+            const legacyWebhookUrl = getLegacyWebhookUrl(flow.id);
             return (
               <div
                 key={flow.id}
@@ -642,16 +649,35 @@ export default function FlowList({ projectId, projectColor }) {
                   <p className="text-sm text-gray-600 mb-2">URL del Webhook:</p>
                   <div className="flex items-center space-x-2">
                     <code className="flex-1 text-xs bg-gray-100 p-2 rounded truncate">
-                      {webhookUrl}
+                      {webhookUrl || 'Workspace no disponible'}
                     </code>
-                    <button
-                      onClick={() => copyToClipboard(webhookUrl)}
-                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors flex items-center justify-center"
-                      title="Copiar URL"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
+                    {webhookUrl && (
+                      <button
+                        onClick={() => copyToClipboard(webhookUrl)}
+                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors flex items-center justify-center"
+                        title="Copiar URL"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
+                  {legacyWebhookUrl && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 mb-1">URL legacy (compatibilidad):</p>
+                      <div className="flex items-center space-x-2">
+                        <code className="flex-1 text-xs bg-yellow-50 p-2 rounded truncate border border-yellow-100">
+                          {legacyWebhookUrl}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(legacyWebhookUrl)}
+                          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                          title="Copiar URL legacy"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-4">

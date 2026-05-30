@@ -87,7 +87,7 @@ export default function NavBar() {
               </Link>
               {buildNumber !== null && buildNumber !== undefined && (
                 <span className="text-[10px] text-gray-500 font-normal italic">
-                  Version 2.0 Build {buildNumber}
+                  Version 3.0.0 Build {buildNumber}
                 </span>
               )}
             </div>

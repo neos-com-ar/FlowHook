@@ -80,6 +80,7 @@ export async function POST(request) {
 
     const { webhookRecord, webhookResult } = await executeWebhook({
       userId,
+      projectId: projectId || null,
       flow,
       flowId,
       incomingData,

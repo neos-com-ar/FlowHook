@@ -8,6 +8,9 @@ import {
   updateProjectPermission,
   checkProjectAccess,
   getUserProjectRole,
+  getProject,
+  getUserWorkspaceRole,
+  addWorkspaceMember,
 } from '@/lib/db';
 import Adapter from '@/lib/adapter';
 
@@ -120,6 +123,14 @@ export async function POST(request, { params }) {
     const invitedUser = await adapter.getUserByEmail(userEmail);
 
     if (invitedUser) {
+      const project = await getProject(projectId);
+      if (project?.workspaceId) {
+        const wsRole = await getUserWorkspaceRole(invitedUser.id, project.workspaceId);
+        if (!wsRole) {
+          await addWorkspaceMember(project.workspaceId, invitedUser.id, 'viewer', userId);
+        }
+      }
+
       // Usuario existe, agregar permiso directamente
       const success = await addProjectPermission(
         projectId,

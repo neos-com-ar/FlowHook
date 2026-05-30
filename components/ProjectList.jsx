@@ -29,6 +29,7 @@ import {
 import ProjectEditor from './ProjectEditor';
 import ProjectPermissions from './ProjectPermissions';
 import FlowList from './FlowList';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 // Mapeo de nombres de iconos a componentes
 const ICON_COMPONENTS = {
@@ -76,6 +77,7 @@ const hexToRgba = (hex, opacity) => {
 
 export default function ProjectList() {
   const { data: session } = useSession();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingProject, setEditingProject] = useState(null);
@@ -87,16 +89,17 @@ export default function ProjectList() {
   const [showOrphanFlows, setShowOrphanFlows] = useState(false);
 
   useEffect(() => {
-    if (session) {
+    if (session && activeWorkspace) {
       fetchProjects();
       fetchOrphanFlows();
     }
-  }, [session]);
+  }, [session, activeWorkspace?.id]);
 
   const fetchProjects = async () => {
+    if (!activeWorkspace?.id) return;
     try {
       setLoading(true);
-      const response = await fetch('/api/projects');
+      const response = await fetch(`/api/projects?workspaceId=${activeWorkspace.id}`);
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects || []);
@@ -175,7 +178,7 @@ export default function ProjectList() {
     setPermissionsProjectId(null);
   };
 
-  if (loading) {
+  if (loading || workspaceLoading) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="text-gray-500">Cargando proyectos...</div>
@@ -187,6 +190,7 @@ export default function ProjectList() {
     return (
       <ProjectEditor
         project={editingProject}
+        workspaceId={activeWorkspace?.id}
         onSave={handleSave}
         onCancel={() => {
           setShowEditor(false);
@@ -270,7 +274,11 @@ export default function ProjectList() {
         {selectedProject.description && (
           <p className="text-gray-600 mb-4">{selectedProject.description}</p>
         )}
-        <FlowList projectId={selectedProject.id} projectColor={projectColor} />
+        <FlowList
+          projectId={selectedProject.id}
+          projectColor={projectColor}
+          workspaceId={selectedProject.workspaceId || activeWorkspace?.id}
+        />
       </div>
     );
   }
@@ -278,7 +286,12 @@ export default function ProjectList() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
+          {activeWorkspace && (
+            <p className="text-sm text-gray-500 mt-1">Workspace: {activeWorkspace.name}</p>
+          )}
+        </div>
         <button
           onClick={handleNewProject}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors font-medium"

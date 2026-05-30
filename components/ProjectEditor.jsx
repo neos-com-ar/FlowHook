@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import {
   Folder,
   BarChart3,
@@ -58,7 +59,8 @@ const ICONS = [
   'Smartphone', 'Globe', 'TrendingUp', 'Palette', 'Lock', 'FileText', 'PartyPopper', 'Star',
 ];
 
-export default function ProjectEditor({ project, onSave, onCancel }) {
+export default function ProjectEditor({ project, workspaceId, onSave, onCancel }) {
+  const { workspaces, refreshWorkspaces } = useWorkspace();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -67,6 +69,12 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
     icon: 'Folder',
   });
   const [loading, setLoading] = useState(false);
+  const [moveTargetId, setMoveTargetId] = useState('');
+  const [moving, setMoving] = useState(false);
+
+  const moveTargets = workspaces.filter(
+    (ws) => ws.id !== (project?.workspaceId || workspaceId),
+  );
 
   useEffect(() => {
     if (project) {
@@ -101,7 +109,10 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
             projectId: project.id,
             ...formData,
           }
-        : formData;
+        : {
+            ...formData,
+            workspaceId,
+          };
 
       const response = await fetch(url, {
         method,
@@ -122,6 +133,31 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
       alert('Error al guardar el proyecto');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMoveProject = async () => {
+    if (!project?.id || !moveTargetId) return;
+    if (!confirm('¿Mover este proyecto al workspace seleccionado? Las URLs de webhook cambiarán.')) return;
+    setMoving(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetWorkspaceId: moveTargetId, inviteCollaborators: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Proyecto movido. Nueva base de URL de webhook:\n${data.webhookUrlHint}`);
+        await refreshWorkspaces();
+        onSave();
+      } else {
+        alert(data.error || 'Error al mover proyecto');
+      }
+    } catch {
+      alert('Error al mover proyecto');
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -246,6 +282,35 @@ export default function ProjectEditor({ project, onSave, onCancel }) {
               Los proyectos compartidos pueden tener múltiples colaboradores
             </p>
           </div>
+
+          {project && moveTargets.length > 0 && (
+            <div className="pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-2">Mover a otro workspace</h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Al mover el proyecto cambia el workspaceId en las URLs de webhook. Los flowId no cambian.
+              </p>
+              <div className="flex gap-2">
+                <select
+                  value={moveTargetId}
+                  onChange={(e) => setMoveTargetId(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="">Seleccionar workspace...</option>
+                  {moveTargets.map((ws) => (
+                    <option key={ws.id} value={ws.id}>{ws.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!moveTargetId || moving}
+                  onClick={handleMoveProject}
+                  className="px-4 py-2 text-sm bg-amber-100 text-amber-900 rounded-md hover:bg-amber-200 disabled:opacity-50"
+                >
+                  {moving ? 'Moviendo...' : 'Mover'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
