@@ -223,6 +223,16 @@ export const authOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
+      if (user?.email && user?.id) {
+        try {
+          const { acceptInvitation, acceptWorkspaceInvitation } = await import('@/lib/db');
+          await acceptInvitation(user.email, user.id);
+          await acceptWorkspaceInvitation(user.email, user.id);
+        } catch (error) {
+          console.error('Error al aceptar invitaciones pendientes:', error);
+        }
+      }
+
       // Si el usuario se autentica por email (magic link) y no tiene contraseña,
       // permitir el sign in pero redirigiremos a la página de establecer contraseña
       if (account?.provider === 'email') {

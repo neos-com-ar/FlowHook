@@ -10,6 +10,7 @@ const WorkspaceContext = createContext(null);
 export function WorkspaceProvider({ children }) {
   const { data: session, status } = useSession();
   const [workspaces, setWorkspaces] = useState([]);
+  const [archivedWorkspaces, setArchivedWorkspaces] = useState([]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +21,9 @@ export function WorkspaceProvider({ children }) {
       if (!response.ok) return;
       const data = await response.json();
       const list = data.workspaces || [];
+      const archived = data.archivedWorkspaces || [];
       setWorkspaces(list);
+      setArchivedWorkspaces(archived);
 
       const storedId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       const stored = list.find(w => w.id === storedId);
@@ -29,6 +32,8 @@ export function WorkspaceProvider({ children }) {
       setActiveWorkspace(next);
       if (next && typeof window !== 'undefined') {
         localStorage.setItem(STORAGE_KEY, next.id);
+      } else if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY);
       }
     } catch (error) {
       console.error('Error fetching workspaces:', error);
@@ -42,6 +47,7 @@ export function WorkspaceProvider({ children }) {
       fetchWorkspaces();
     } else if (status === 'unauthenticated') {
       setWorkspaces([]);
+      setArchivedWorkspaces([]);
       setActiveWorkspace(null);
       setLoading(false);
     }
@@ -62,6 +68,7 @@ export function WorkspaceProvider({ children }) {
   return (
     <WorkspaceContext.Provider value={{
       workspaces,
+      archivedWorkspaces,
       activeWorkspace,
       loading,
       switchWorkspace,

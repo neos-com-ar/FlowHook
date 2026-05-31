@@ -3,11 +3,14 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import {
   getUserWorkspaces,
+  getUserArchivedWorkspaces,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
   checkWorkspaceAccess,
   ensureUserWorkspaceSetup,
+  acceptInvitation,
+  acceptWorkspaceInvitation,
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -21,9 +24,14 @@ export async function GET() {
     }
 
     await ensureUserWorkspaceSetup(session.user.id);
+    if (session.user.email) {
+      await acceptInvitation(session.user.email, session.user.id);
+      await acceptWorkspaceInvitation(session.user.email, session.user.id);
+    }
     const workspaces = await getUserWorkspaces(session.user.id);
+    const archivedWorkspaces = await getUserArchivedWorkspaces(session.user.id);
 
-    return NextResponse.json({ workspaces });
+    return NextResponse.json({ workspaces, archivedWorkspaces });
   } catch (error) {
     console.error('Error getting workspaces:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -98,7 +106,7 @@ export async function PUT(request) {
     return NextResponse.json({ success: true, workspace });
   } catch (error) {
     console.error('Error updating workspace:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 400 });
   }
 }
 

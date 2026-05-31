@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Plus, Settings, Users } from 'lucide-react';
+import { ChevronDown, Plus, Settings, Users, Archive, RotateCcw } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import WorkspaceSettings from './WorkspaceSettings';
 import WorkspaceMembers from './WorkspaceMembers';
 
 export default function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, loading, switchWorkspace, refreshWorkspaces } = useWorkspace();
+  const { workspaces, archivedWorkspaces, activeWorkspace, loading, switchWorkspace, refreshWorkspaces, setActiveWorkspace } = useWorkspace();
   const [open, setOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -25,6 +27,33 @@ export default function WorkspaceSwitcher() {
     if (open) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
+
+  const handleRestore = async (workspaceId, workspaceName) => {
+    if (!confirm(`¿Restaurar "${workspaceName}"?\n\nVolverá a aparecer en tu selector de workspaces.`)) return;
+    setRestoringId(workspaceId);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await refreshWorkspaces();
+        if (data.workspace) {
+          setActiveWorkspace(data.workspace);
+          localStorage.setItem('flowhook_active_workspace', data.workspace.id);
+        }
+        setOpen(false);
+      } else {
+        alert(data.error || 'Error al restaurar');
+      }
+    } catch {
+      alert('Error al restaurar workspace');
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -151,6 +180,48 @@ export default function WorkspaceSwitcher() {
                   Miembros
                 </button>
               )}
+            </>
+          )}
+
+          {archivedWorkspaces.length > 0 && (
+            <>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                type="button"
+                onClick={() => setShowArchived(!showArchived)}
+                className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 flex items-center justify-between"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Archive className="w-4 h-4" />
+                  Archivados ({archivedWorkspaces.length})
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showArchived ? 'rotate-180' : ''}`} />
+              </button>
+              {showArchived && archivedWorkspaces.map((ws) => (
+                <div
+                  key={ws.id}
+                  className="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-600 truncate">{ws.name}</p>
+                    {ws.archivedAt && (
+                      <p className="text-xs text-gray-400">
+                        {new Date(ws.archivedAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={restoringId === ws.id}
+                    onClick={() => handleRestore(ws.id, ws.name)}
+                    className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-xs text-indigo-700 bg-indigo-50 rounded hover:bg-indigo-100 disabled:opacity-50"
+                    title="Restaurar workspace"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    {restoringId === ws.id ? '...' : 'Restaurar'}
+                  </button>
+                </div>
+              ))}
             </>
           )}
         </div>
