@@ -30,6 +30,7 @@ import ProjectEditor from './ProjectEditor';
 import ProjectPermissions from './ProjectPermissions';
 import FlowList from './FlowList';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import WorkspaceLabel from './WorkspaceLabel';
 
 // Mapeo de nombres de iconos a componentes
 const ICON_COMPONENTS = {
@@ -288,7 +289,14 @@ export default function ProjectList() {
       <div className="flex justify-between items-center mb-6">
         <div>
           {activeWorkspace && (
-            <p className="text-sm font-medium text-indigo-600 mb-1">{activeWorkspace.name}</p>
+            <div className="mb-1">
+              <WorkspaceLabel
+                workspace={activeWorkspace}
+                showSlug
+                nameClassName="text-sm font-medium"
+                slugClassName="text-xs text-gray-400 font-mono"
+              />
+            </div>
           )}
           <h1 className="text-3xl font-bold text-gray-900">Proyectos</h1>
         </div>

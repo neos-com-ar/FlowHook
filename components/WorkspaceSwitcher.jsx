@@ -5,6 +5,7 @@ import { ChevronDown, Plus, Settings, Users, Archive, RotateCcw } from 'lucide-r
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import WorkspaceSettings from './WorkspaceSettings';
 import WorkspaceMembers from './WorkspaceMembers';
+import WorkspaceLabel, { WorkspaceColorDot } from './WorkspaceLabel';
 
 export default function WorkspaceSwitcher() {
   const { workspaces, archivedWorkspaces, activeWorkspace, loading, switchWorkspace, refreshWorkspaces, setActiveWorkspace } = useWorkspace();
@@ -108,9 +109,17 @@ export default function WorkspaceSwitcher() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors max-w-[200px]"
+        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors max-w-[220px]"
+        title={activeWorkspace?.slug && !activeWorkspace?.isPersonal ? activeWorkspace.slug : undefined}
       >
-        <span className="truncate">{activeWorkspace?.name || 'Workspace'}</span>
+        {activeWorkspace ? (
+          <>
+            <WorkspaceColorDot color={activeWorkspace.color} />
+            <span className="truncate">{activeWorkspace.name}</span>
+          </>
+        ) : (
+          <span className="truncate">Workspace</span>
+        )}
         <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -124,11 +133,16 @@ export default function WorkspaceSwitcher() {
                 switchWorkspace(ws.id);
                 setOpen(false);
               }}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between ${
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between gap-2 ${
                 activeWorkspace?.id === ws.id ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'
               }`}
             >
-              <span className="truncate">{ws.name}</span>
+              <WorkspaceLabel
+                workspace={ws}
+                showSlug
+                nameClassName={`text-sm truncate ${activeWorkspace?.id === ws.id ? 'text-indigo-700 font-medium' : 'text-gray-900'}`}
+                slugClassName={`text-xs truncate font-mono ${activeWorkspace?.id === ws.id ? 'text-indigo-400' : 'text-gray-400'}`}
+              />
               {ws.isPersonal && (
                 <span className="text-xs text-gray-400 ml-2 flex-shrink-0">Personal</span>
               )}
@@ -202,13 +216,19 @@ export default function WorkspaceSwitcher() {
                   key={ws.id}
                   className="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm text-gray-600 truncate">{ws.name}</p>
-                    {ws.archivedAt && (
-                      <p className="text-xs text-gray-400">
-                        {new Date(ws.archivedAt).toLocaleDateString()}
-                      </p>
-                    )}
+                  <div className="min-w-0 flex items-center gap-2">
+                    <WorkspaceColorDot color={ws.color} className="w-2 h-2 opacity-60" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-600 truncate">{ws.name}</p>
+                      {ws.slug && !ws.isPersonal && (
+                        <p className="text-xs text-gray-400 truncate font-mono">{ws.slug}</p>
+                      )}
+                      {ws.archivedAt && (
+                        <p className="text-xs text-gray-400">
+                          {new Date(ws.archivedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <button
                     type="button"
