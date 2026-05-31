@@ -74,6 +74,52 @@ const hexToRgba = (hex, opacity) => {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
+const MAP_PREVIEW_LINES = 3;
+const MAP_LINE_MAX_CHARS = 52;
+
+function getMappingPreview(map) {
+  if (!map || typeof map !== 'object') return { lines: [], remaining: 0 };
+  const entries = Object.entries(map);
+  const lines = entries.slice(0, MAP_PREVIEW_LINES).map(([dest, src]) => {
+    const srcStr = typeof src === 'object' ? JSON.stringify(src) : String(src ?? '');
+    const destStr = String(dest);
+    let text = `${srcStr} → ${destStr}`;
+    if (text.length > MAP_LINE_MAX_CHARS) {
+      text = `${text.slice(0, MAP_LINE_MAX_CHARS)}…`;
+    }
+    return text;
+  });
+  return {
+    lines,
+    remaining: Math.max(0, entries.length - MAP_PREVIEW_LINES),
+  };
+}
+
+function UrlField({ label, url, onCopy, codeClassName = 'bg-gray-100' }) {
+  if (!url) return null;
+  return (
+    <div className={label ? 'mt-2' : ''}>
+      {label && <p className="text-xs text-gray-500 mb-1">{label}</p>}
+      <div className="flex items-center gap-2 min-w-0">
+        <code
+          title={url}
+          className={`flex-1 min-w-0 text-xs p-2 rounded truncate cursor-default ${codeClassName}`}
+        >
+          {url}
+        </code>
+        <button
+          type="button"
+          onClick={() => onCopy(url)}
+          className="flex-shrink-0 px-2 py-2 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+          title="Copiar URL"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function FlowList({ projectId, projectColor, workspaceId }) {
   const { data: session } = useSession();
   const [flows, setFlows] = useState([]);
@@ -633,6 +679,7 @@ export default function FlowList({ projectId, projectColor, workspaceId }) {
           {flows.map((flow) => {
             const webhookUrl = getWebhookUrl(flow.id);
             const legacyWebhookUrl = getLegacyWebhookUrl(flow.id);
+            const mappingPreview = getMappingPreview(flow.map);
             return (
               <div
                 key={flow.id}
@@ -647,37 +694,19 @@ export default function FlowList({ projectId, projectColor, workspaceId }) {
 
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 mb-2">URL del Webhook:</p>
-                  <div className="flex items-center space-x-2">
-                    <code className="flex-1 text-xs bg-gray-100 p-2 rounded truncate">
-                      {webhookUrl || 'Workspace no disponible'}
+                  {webhookUrl ? (
+                    <UrlField url={webhookUrl} onCopy={copyToClipboard} />
+                  ) : (
+                    <code className="block text-xs bg-gray-100 p-2 rounded text-gray-500">
+                      Workspace no disponible
                     </code>
-                    {webhookUrl && (
-                      <button
-                        onClick={() => copyToClipboard(webhookUrl)}
-                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors flex items-center justify-center"
-                        title="Copiar URL"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  {legacyWebhookUrl && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">URL legacy (compatibilidad):</p>
-                      <div className="flex items-center space-x-2">
-                        <code className="flex-1 text-xs bg-yellow-50 p-2 rounded truncate border border-yellow-100">
-                          {legacyWebhookUrl}
-                        </code>
-                        <button
-                          onClick={() => copyToClipboard(legacyWebhookUrl)}
-                          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
-                          title="Copiar URL legacy"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
                   )}
+                  <UrlField
+                    label="URL legacy (compatibilidad):"
+                    url={legacyWebhookUrl}
+                    onCopy={copyToClipboard}
+                    codeClassName="bg-yellow-50 border border-yellow-100"
+                  />
                 </div>
 
                 <div className="mb-4">
@@ -687,75 +716,78 @@ export default function FlowList({ projectId, projectColor, workspaceId }) {
                       {flow.method || 'POST'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{flow.destino}</p>
+                  <p className="text-xs text-gray-500 truncate cursor-default" title={flow.destino}>
+                    {flow.destino}
+                  </p>
                 </div>
 
-                {flow.map && Object.keys(flow.map).length > 0 && (
+                {mappingPreview.lines.length > 0 && (
                   <div className="mb-4">
                     <p className="text-sm text-gray-600 mb-1">Mapeo:</p>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      {Object.entries(flow.map).slice(0, 3).map(([dest, src]) => (
-                        <div key={dest}>
-                          {src} → {dest}
+                    <div className="text-xs text-gray-500 space-y-0.5 font-mono">
+                      {mappingPreview.lines.map((line, index) => (
+                        <div key={index} className="truncate" title={line}>
+                          {line}
                         </div>
                       ))}
-                      {Object.keys(flow.map).length > 3 && (
-                        <div>+{Object.keys(flow.map).length - 3} más</div>
+                      {mappingPreview.remaining > 0 && (
+                        <div className="text-indigo-600 font-sans pt-0.5">
+                          +{mappingPreview.remaining} más
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-2 mt-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      onClick={() => handleEdit(flow)}
-                      className="w-full px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors inline-flex items-center justify-center gap-1"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDuplicateClick(flow)}
-                      className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors inline-flex items-center justify-center gap-1"
-                      title="Duplicar flujo"
-                    >
-                      <Copy className="w-4 h-4" />
-                      Duplicar
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                    <Link
-                      href={`/dashboard/webhooks?${flow.projectId ? `projectId=${encodeURIComponent(flow.projectId)}&` : ''}flowId=${encodeURIComponent(flow.id)}`}
-                      className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors inline-flex items-center justify-center gap-1 text-center"
-                    >
-                      <BarChart3 className="w-4 h-4" />
-                      Ver Historial
-                    </Link>
-                    <button
-                      onClick={() => handleMoveClick(flow)}
-                      className="w-full px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors inline-flex items-center justify-center gap-1"
-                      title="Mover a otro proyecto"
-                    >
-                      <Package className="w-4 h-4" />
-                      Mover
-                    </button>
-                    <button
-                      onClick={() => handleExportSingleFlow(flow)}
-                      className="w-full px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors inline-flex items-center justify-center gap-1"
-                      title="Exportar este flujo"
-                    >
-                      <Download className="w-4 h-4" />
-                      Exportar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(flow.id)}
-                      className="w-full px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors inline-flex items-center justify-center gap-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Eliminar
-                    </button>
-                  </div>
+                <div className="grid grid-cols-3 gap-1.5 mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => handleEdit(flow)}
+                    className="px-2 py-2 text-xs bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px]"
+                    title="Editar flujo"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    <span>Editar</span>
+                  </button>
+                  <button
+                    onClick={() => handleDuplicateClick(flow)}
+                    className="px-2 py-2 text-xs bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px]"
+                    title="Duplicar flujo"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Duplicar</span>
+                  </button>
+                  <Link
+                    href={`/dashboard/webhooks?${flow.projectId ? `projectId=${encodeURIComponent(flow.projectId)}&` : ''}flowId=${encodeURIComponent(flow.id)}`}
+                    className="px-2 py-2 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px] text-center"
+                    title="Ver historial de webhooks"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Historial</span>
+                  </Link>
+                  <button
+                    onClick={() => handleMoveClick(flow)}
+                    className="px-2 py-2 text-xs bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px]"
+                    title="Mover a otro proyecto"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span>Mover</span>
+                  </button>
+                  <button
+                    onClick={() => handleExportSingleFlow(flow)}
+                    className="px-2 py-2 text-xs bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px]"
+                    title="Exportar este flujo"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Exportar</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(flow.id)}
+                    className="px-2 py-2 text-xs bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors inline-flex flex-col items-center justify-center gap-1 min-h-[52px]"
+                    title="Eliminar flujo"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Eliminar</span>
+                  </button>
                 </div>
               </div>
             );
