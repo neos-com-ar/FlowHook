@@ -1,8 +1,8 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -35,27 +35,43 @@ function parseFlowFilterValue(value) {
   };
 }
 
-function getInitialFlowFilterFromUrl() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const flowIdFromUrl = urlParams.get('flowId');
+function buildInitialFlowFilter(searchParams) {
+  const flowIdFromUrl = searchParams.get('flowId');
   if (!flowIdFromUrl) {
     return null;
   }
 
-  const projectIdFromUrl = urlParams.get('projectId');
+  const projectIdFromUrl = searchParams.get('projectId');
   return `${projectIdFromUrl || 'legacy'}:${flowIdFromUrl}`;
 }
 
-export default function WebhooksPage() {
+async function fetchWebhookDetail(webhook) {
+  const params = new URLSearchParams({
+    webhookId: webhook.id,
+    flowId: webhook.flowId,
+  });
+  if (webhook.projectId) {
+    params.set('projectId', webhook.projectId);
+  }
+
+  const response = await fetch(`/api/webhooks/detail?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('No se pudo cargar el detalle del webhook');
+  }
+
+  const data = await response.json();
+  return data.webhook;
+}
+
+function WebhooksPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFlowKey, setSelectedFlowKey] = useState(getInitialFlowFilterFromUrl);
+  const [selectedFlowKey, setSelectedFlowKey] = useState(() =>
+    buildInitialFlowFilter(searchParams),
+  );
   const [flows, setFlows] = useState([]);
   const [expandedWebhook, setExpandedWebhook] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -70,6 +86,15 @@ export default function WebhooksPage() {
   const [retryPayloadText, setRetryPayloadText] = useState('');
   const [retryError, setRetryError] = useState('');
   const [retryLoading, setRetryLoading] = useState(false);
+  const [webhookDetails, setWebhookDetails] = useState({});
+  const [loadingDetailId, setLoadingDetailId] = useState(null);
+
+  useEffect(() => {
+    const flowKeyFromUrl = buildInitialFlowFilter(searchParams);
+    if (flowKeyFromUrl) {
+      setSelectedFlowKey(flowKeyFromUrl);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -175,13 +200,45 @@ export default function WebhooksPage() {
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  const openRetryModal = (webhook) => {
+  const openRetryModal = async (webhook) => {
     setRetryWebhook(webhook);
-    setRetryPayloadText(
-      JSON.stringify(webhook.incomingData || {}, null, 2),
-    );
+    setRetryPayloadText('{}');
     setRetryError('');
     setIsRetryModalOpen(true);
+
+    try {
+      const detail = webhookDetails[webhook.id] || await fetchWebhookDetail(webhook);
+      setWebhookDetails((current) => ({ ...current, [webhook.id]: detail }));
+      setRetryPayloadText(
+        JSON.stringify(detail.incomingData || {}, null, 2),
+      );
+    } catch (error) {
+      console.error('Error cargando payload para retry:', error);
+      setRetryError('No se pudo cargar el payload del webhook');
+    }
+  };
+
+  const toggleWebhookDetails = async (webhook) => {
+    if (expandedWebhook === webhook.id) {
+      setExpandedWebhook(null);
+      return;
+    }
+
+    setExpandedWebhook(webhook.id);
+
+    if (webhookDetails[webhook.id]) {
+      return;
+    }
+
+    try {
+      setLoadingDetailId(webhook.id);
+      const detail = await fetchWebhookDetail(webhook);
+      setWebhookDetails((current) => ({ ...current, [webhook.id]: detail }));
+    } catch (error) {
+      console.error('Error cargando detalle del webhook:', error);
+    } finally {
+      setLoadingDetailId(null);
+    }
   };
 
   const closeRetryModal = () => {
@@ -439,11 +496,7 @@ export default function WebhooksPage() {
                     </button>
                   )}
                   <button
-                    onClick={() =>
-                      setExpandedWebhook(
-                        expandedWebhook === webhook.id ? null : webhook.id,
-                      )
-                    }
+                    onClick={() => toggleWebhookDetails(webhook)}
                     className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                   >
                     {expandedWebhook === webhook.id
@@ -504,12 +557,20 @@ export default function WebhooksPage() {
 
               {expandedWebhook === webhook.id && (
                 <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                  {loadingDetailId === webhook.id ? (
+                    <div className="text-sm text-gray-500">Cargando detalles...</div>
+                  ) : (
+                    <>
+                  {(() => {
+                    const detail = webhookDetails[webhook.id] || webhook;
+                    return (
+                      <>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">
                       Datos recibidos:
                     </h3>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(webhook.incomingData || {}, null, 2)}
+                      {JSON.stringify(detail.incomingData || {}, null, 2)}
                     </pre>
                   </div>
                   <div>
@@ -522,7 +583,7 @@ export default function WebhooksPage() {
                       de despliegue).
                     </p>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(webhook.incomingHeaders || {}, null, 2)}
+                      {JSON.stringify(detail.incomingHeaders || {}, null, 2)}
                     </pre>
                   </div>
                   <div>
@@ -530,7 +591,7 @@ export default function WebhooksPage() {
                       Headers enviados:
                     </h3>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(webhook.headers || {}, null, 2)}
+                      {JSON.stringify(detail.headers || {}, null, 2)}
                     </pre>
                   </div>
                   <div>
@@ -538,9 +599,12 @@ export default function WebhooksPage() {
                       Datos mapeados enviados:
                     </h3>
                     <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(webhook.mappedData || {}, null, 2)}
+                      {JSON.stringify(detail.mappedData || {}, null, 2)}
                     </pre>
                   </div>
+                      </>
+                    );
+                  })()}
                   {webhook.result && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 mb-2">
@@ -576,10 +640,12 @@ export default function WebhooksPage() {
                       </div>
                     </div>
                   )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
-          ))}
+            ))}
           </div>
 
           {/* Controles de paginación */}
@@ -699,6 +765,20 @@ export default function WebhooksPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WebhooksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-gray-500">Cargando...</div>
+        </div>
+      }
+    >
+      <WebhooksPageContent />
+    </Suspense>
   );
 }
 

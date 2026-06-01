@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { getWebhooks, getProjectFlows, getFlow, updateWebhook } from '@/lib/db';
+import { getWebhookById, getProjectFlows, getFlow, updateWebhook } from '@/lib/db';
 import { executeWebhook } from '@/lib/webhook-executor';
 
 export const dynamic = 'force-dynamic';
@@ -32,12 +32,12 @@ export async function POST(request) {
       );
     }
 
-    // Buscar el webhook original en el historial de ese flujo
-    const { webhooks } = await getWebhooks(userId, flowId, 1000, 0, {
-      projectId: projectId || null,
-    });
-    const originalWebhook =
-      webhooks.find((w) => w.id === webhookId) || null;
+    const originalWebhook = await getWebhookById(
+      userId,
+      webhookId,
+      flowId,
+      projectId || null,
+    );
 
     if (!originalWebhook) {
       return NextResponse.json(
