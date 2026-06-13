@@ -459,6 +459,21 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     return `literal:${value}`;
   };
 
+  const literalHasExpressions = () => {
+    const content =
+      literalType === 'object'
+        ? literalObjectValue
+        : literalType === 'array'
+          ? literalArrayValue
+          : literalValue;
+    if (!content) return false;
+    return (
+      /[+\-*/]/.test(content) ||
+      /::(divide|multiply|add|subtract|round|if|case)/.test(content) ||
+      /\{\{\s*(if|case)\(/.test(content)
+    );
+  };
+
   const loadExamplesAutomatically = async () => {
     setLoadingExamples(true);
     
@@ -744,10 +759,14 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
       }
     });
 
-    // Construir las condiciones (solo si tienen campo, operador y valor)
-    const validConditions = conditions.filter(
-      (condition) => condition.field && condition.operator && condition.value !== undefined && condition.value !== ''
-    );
+    // Construir las condiciones (solo si tienen campo y operador; isEmpty/isNotEmpty no requieren valor)
+    const validConditions = conditions.filter((condition) => {
+      if (!condition.field || !condition.operator) return false;
+      if (condition.operator === 'isEmpty' || condition.operator === 'isNotEmpty') {
+        return true;
+      }
+      return condition.value !== undefined && condition.value !== '';
+    });
 
     // Construir las acciones post-respuesta
     const postResponseActionsData = postResponseActions
@@ -1957,7 +1976,45 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <li>Si configuraste llamadas previas, usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> (ej: <code className="bg-gray-200 px-1 rounded">prev.clientes.idCliente</code>)</li>
                       <li><strong>Acciones previas dinámicas:</strong> usa <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint({'{{'}valor{'}}'})</code> para ejecutar acciones previas con valores del array (ej: <code className="bg-gray-200 px-1 rounded">prev.obtenerId({'{{'}data.items[0].codigo{'}}'})</code>)</li>
                       <li><strong>Para arrays:</strong> usa <code className="bg-gray-200 px-1 rounded">data.array[0].campo</code> para el primer elemento (ej: <code className="bg-gray-200 px-1 rounded">data.items[0].codigo</code>)</li>
+                      <li><strong>Cálculos numéricos:</strong> sufijos <code className="bg-gray-200 px-1 rounded">::divide(1.21)</code>, <code className="bg-gray-200 px-1 rounded">::multiplyBy(data.campo2)</code>, <code className="bg-gray-200 px-1 rounded">::round(2)</code></li>
+                      <li><strong>Cálculo entre campos:</strong> <code className="bg-gray-200 px-1 rounded">data.campo1::divideBy(data.campo2)</code> o <code className="bg-gray-200 px-1 rounded">calc:{'{{'}data.campo1{'}}'}/{'{{'}data.campo2{'}}'}</code></li>
+                      <li><strong>Aritmética en literales:</strong> <code className="bg-gray-200 px-1 rounded">{'{{'}data.precio{'}}'}/1.21</code> o <code className="bg-gray-200 px-1 rounded">{'{{'}data.total{'}}'}/{'{{'}data.cantidad{'}}'}</code></li>
+                      <li><strong>IF condicional (sufijo):</strong> <code className="bg-gray-200 px-1 rounded">data.campo::if(equals,VAL,then,else)</code> (ej: <code className="bg-gray-200 px-1 rounded">data.tipo::if(equals,PREMIUM,1,0)</code>)</li>
+                      <li><strong>IF en templates:</strong> <code className="bg-gray-200 px-1 rounded">{'{{'}if(data.tipo,equals,PREMIUM,data.descuento,0){'}}'}</code></li>
+                      <li><strong>CASE con default:</strong> <code className="bg-gray-200 px-1 rounded">data.estado::case{'{'}ACTIVE:1,INACTIVE:0,default:-1{'}'}</code></li>
+                      <li><strong>CASE en templates:</strong> <code className="bg-gray-200 px-1 rounded">{'{{'}case(data.estado,ACTIVE,1,INACTIVE,0,default,-1){'}}'}</code></li>
                     </ul>
+                    <details className="mt-3">
+                      <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
+                        Ver ejemplos de cálculos e IF/CASE
+                      </summary>
+                      <div className="mt-2 p-3 bg-white border border-gray-200 rounded text-xs space-y-3">
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Mapeo directo con cálculos:</p>
+                          <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{`precioNeto → data.precio::divide(1.21)::round(2)
+ratio      → data.campo1::divideBy(data.campo2)
+ratioAlt   → calc:{{data.campo1}}/{{data.campo2}}`}</pre>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Literal array con cálculo e IF:</p>
+                          <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{`literal:[
+  {
+    "precioUnitario": {{data.lineasPedido[0].precioUnitario}}/1.21,
+    "ratio": {{data.total}}/{{data.cantidad}},
+    "descuento": {{if(data.cliente.esVIP,equals,true,10,0)}}
+  }
+]`}</pre>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Operadores IF disponibles:</p>
+                          <p className="text-gray-600">equals, notEquals, gt (greaterThan), lt (lessThan), contains, startsWith, endsWith, isEmpty, isNotEmpty</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Diferencia ::map vs ::case:</p>
+                          <p className="text-gray-600"><code className="bg-gray-100 px-1 rounded">::map{'{'}OBR:1{'}'}</code> mapea valores exactos. <code className="bg-gray-100 px-1 rounded">::case{'{'}OBR:1,default:0{'}'}</code> añade valor por defecto si no hay coincidencia.</p>
+                        </div>
+                      </div>
+                    </details>
                     <details className="mt-3">
                       <summary className="text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-700">
                         Ver más ejemplos de arrays
@@ -1991,7 +2048,9 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
     "idItem": "{{data.items[0].codigo}}",
     "descripcion": "{{data.items[0].nombre}}",
     "cantidad": {{data.items[0].cantidad}},
-    "precioUnitario": {{data.items[0].precioUnitario}}
+    "precioUnitario": {{data.items[0].precioUnitario::divide(1.21)}},
+    "ratio": {{data.total}}/{{data.cantidad}},
+    "descuento": {{if(data.cliente.esVIP,equals,true,10,0)}}
   }
 ]`}
                         </pre>
@@ -2022,7 +2081,8 @@ Valor fuente: literal:[
     "idItem": prev.obtenerId({{data.data.items[0].codigo}}).id,
     "descripcion": "{{data.data.items[0].nombre}}",
     "cantidad": {{data.data.items[0].cantidad}},
-    "precioUnitario": {{data.data.lineasPedido[0].precioUnitario}}
+    "precioUnitario": {{data.data.lineasPedido[0].precioUnitario}}/1.21,
+    "ratio": {{data.data.total}}/{{data.data.cantidad}}
   }
 ]`}
                               </pre>
@@ -2120,9 +2180,9 @@ Valor fuente: literal:[
                           type="text"
                           value={entry.src}
                           onChange={(e) => handleMappingChange(index, 'src', e.target.value)}
-                          placeholder='data.nombre o data.array[0].campo o literal:valor'
+                          placeholder='data.nombre, calc:{{data.a}}/{{data.b}}, literal:valor'
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono text-xs"
-                          title='Campo del webhook. Usa data.array[0].campo para arrays. Usa ::map{key:val} para mapear valores. Usa ::number para convertir a número. Usa literal:valor para valores fijos.'
+                          title='Campo del webhook. Usa calc: para expresiones, ::divide/::if/::case para transforms, literal: para valores fijos. Ver Guía de Mapeo.'
                         />
                         <button
                           type="button"
@@ -2874,8 +2934,9 @@ Valor fuente: literal:[
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-gray-500">
-                      Define cómo se mapean los valores del campo origen a valores numéricos. 
-                      Ejemplo: Si el campo origen tiene "OBR", se enviará 1 al destino.
+                      Define cómo se mapean los valores del campo origen a valores numéricos.
+                      Usa <code className="bg-gray-100 px-1 rounded">::map{'{'}OBR:1{'}'}</code> para lookup simple.
+                      Para valor por defecto usa <code className="bg-gray-100 px-1 rounded">::case{'{'}OBR:1,default:0{'}'}</code> directamente en el campo fuente.
                     </p>
                   </div>
 
@@ -3029,13 +3090,15 @@ Valor fuente: literal:[
                       <textarea
                         value={literalObjectValue}
                         onChange={(e) => setLiteralObjectValue(e.target.value)}
-                        placeholder='{"campo1": "valor1", "campo2": "valor2"}'
+                        placeholder={useTemplate
+                          ? '{"precioUnitario": {{data.precio}}/1.21, "activo": {{if(data.tipo,equals,PREMIUM,1,0)}}}'
+                          : '{"campo1": "valor1", "campo2": "valor2"}'}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono"
                         rows={6}
                       />
                       <p className="mt-1 text-xs text-gray-500">
                         {useTemplate 
-                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER} para insertar valores del webhook (ej: {"nombre": "{{data.nombre}}"})`
+                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, cálculos inline, {{if(...)}} y {{case(...)}}`
                           : 'Ingresa un objeto JSON válido (ej: {"campo": "valor"})'}
                       </p>
                     </div>
@@ -3060,13 +3123,15 @@ Valor fuente: literal:[
                       <textarea
                         value={literalArrayValue}
                         onChange={(e) => setLiteralArrayValue(e.target.value)}
-                        placeholder='[{"campo1": "valor1"}, {"campo2": "valor2"}]'
+                        placeholder={useTemplate
+                          ? '[{"precioUnitario": {{data.precio}}/1.21, "ratio": {{data.total}}/{{data.cantidad}}}]'
+                          : '[{"campo": "valor"}]'}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono"
                         rows={6}
                       />
                       <p className="mt-1 text-xs text-gray-500">
                         {useTemplate 
-                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER} para insertar valores del webhook (ej: [{"nombre": "{{data.nombre}}"}]`
+                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, cálculos inline (ej: {{data.precio}}/1.21), {{if(...)}} y {{case(...)}}`
                           : 'Ingresa un array JSON válido (ej: [{"campo": "valor"}])'}
                       </p>
                     </div>
@@ -3079,6 +3144,11 @@ Valor fuente: literal:[
                         {getLiteralPreview()}
                       </code>
                     </p>
+                    {literalHasExpressions() && (
+                      <p className="text-xs text-blue-700 mt-2">
+                        Contiene cálculo o condicional — se evaluará al ejecutar el flujo.
+                      </p>
+                    )}
                   </div>
                 </div>
 
