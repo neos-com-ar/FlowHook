@@ -12,6 +12,7 @@ import {
   evaluateTemplateCase,
   splitFunctionArgs,
   parseSuffixTransform,
+  resolveInlineCalcTemplates,
 } from '../lib/mapping-expressions.mjs';
 
 function getNestedValue(obj, path) {
@@ -153,4 +154,21 @@ test('parseSuffixTransform if y divide', () => {
   const ifTransform = parseSuffixTransform('if(equals,ACTIVO,1,0)');
   assert.equal(ifTransform.type, 'if');
   assert.equal(ifTransform.operator, 'equals');
+});
+
+test('resolveInlineCalcTemplates con precio string y division', () => {
+  const template =
+    '[{"precioUnitario": {{data.precio}}/1.21, "cantidad": {{data.cantidad}}}]';
+  const ctx = { data: { precio: '145.2', cantidad: 2 } };
+  const resolved = resolveInlineCalcTemplates(template, (expr) =>
+    getNestedValue(ctx, expr),
+  );
+  assert.ok(!resolved.includes('/1.21'));
+  const parsed = JSON.parse(
+    resolved.replace(/\{\{([^}]+)\}\}/g, (_m, path) => {
+      const v = getNestedValue(ctx, path.trim());
+      return typeof v === 'string' ? JSON.stringify(v) : String(v);
+    }),
+  );
+  assert.equal(parsed[0].precioUnitario, 120);
 });
