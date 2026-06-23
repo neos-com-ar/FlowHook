@@ -13,6 +13,8 @@ import {
   splitFunctionArgs,
   parseSuffixTransform,
   resolveInlineCalcTemplates,
+  resolveConcatenatedStringTemplates,
+  resolveAdjacentUnquotedPlaceholders,
 } from '../lib/mapping-expressions.mjs';
 
 function getNestedValue(obj, path) {
@@ -171,4 +173,97 @@ test('resolveInlineCalcTemplates con precio string y division', () => {
     }),
   );
   assert.equal(parsed[0].precioUnitario, 120);
+});
+
+test('resolveConcatenatedStringTemplates concatena placeholders dentro de comillas', () => {
+  const ctx = {
+    data: {
+      data: {
+        lineasPedido: [{ producto: { nombre: 'Producto A' } }],
+        direccionEntrega: [{ direccionCompleta: 'Calle 1', ciudad: 'Madrid' }],
+      },
+    },
+  };
+  const resolve = (expr) => getNestedValue(ctx, expr);
+
+  const template =
+    '{"descripcion": "{{data.data.lineasPedido[0].producto.nombre}} - {{data.data.direccionEntrega[0].direccionCompleta}}, {{data.data.direccionEntrega[0].ciudad}}"}';
+  const resolved = resolveConcatenatedStringTemplates(template, resolve);
+  const parsed = JSON.parse(resolved);
+  assert.equal(parsed.descripcion, 'Producto A - Calle 1, Madrid');
+});
+
+test('resolveConcatenatedStringTemplates mantiene un solo placeholder en comillas', () => {
+  const ctx = { data: { nombre: 'Solo' } };
+  const template = '{"descripcion": "{{data.nombre}}"}';
+  const resolved = resolveConcatenatedStringTemplates(template, (expr) =>
+    getNestedValue(ctx, expr),
+  );
+  assert.equal(JSON.parse(resolved).descripcion, 'Solo');
+});
+
+test('resolveConcatenatedStringTemplates trata null como cadena vacía', () => {
+  const ctx = { data: { a: 'Hola', b: null } };
+  const template = '{"texto": "{{data.a}}{{data.b}}{{data.c}}"}';
+  const resolved = resolveConcatenatedStringTemplates(template, (expr) =>
+    getNestedValue(ctx, expr),
+  );
+  assert.equal(JSON.parse(resolved).texto, 'Hola');
+});
+
+test('resolveAdjacentUnquotedPlaceholders concatena placeholders adyacentes sin comillas', () => {
+  const ctx = {
+    data: {
+      data: {
+        lineasPedido: [{ producto: { nombre: 'Producto A' } }],
+        direccionEntrega: [{ direccionCompleta: 'Calle 1', ciudad: 'Madrid' }],
+      },
+    },
+  };
+  const resolve = (expr) => getNestedValue(ctx, expr);
+
+  const template =
+    '{"descripcion": {{data.data.lineasPedido[0].producto.nombre}}{{data.data.direccionEntrega[0].direccionCompleta}}{{data.data.direccionEntrega[0].ciudad}}}';
+  const resolved = resolveAdjacentUnquotedPlaceholders(template, resolve);
+  const parsed = JSON.parse(resolved);
+  assert.equal(parsed.descripcion, 'Producto ACalle 1Madrid');
+});
+
+test('concatenación completa en literal array produce JSON válido', () => {
+  const ctx = {
+    data: {
+      data: {
+        lineasPedido: [
+          {
+            producto: { nombre: 'Producto A', codigoErp: 'ABC' },
+            cantidad: 2,
+            precioUnitario: 121,
+          },
+        ],
+        direccionEntrega: [{ direccionCompleta: 'Calle 1', ciudad: 'Madrid' }],
+      },
+    },
+  };
+  const resolve = (expr) => getNestedValue(ctx, expr);
+
+  let template = `[{
+    "CodigoArticulo": {{data.data.lineasPedido[0].producto.codigoErp}},
+    "descripcion": "{{data.data.lineasPedido[0].producto.nombre}} - {{data.data.direccionEntrega[0].direccionCompleta}}, {{data.data.direccionEntrega[0].ciudad}}",
+    "cantidad": {{data.data.lineasPedido[0].cantidad}}
+  }]`;
+
+  template = resolveConcatenatedStringTemplates(template, resolve);
+  template = resolveInlineCalcTemplates(template, resolve);
+  template = resolveAdjacentUnquotedPlaceholders(template, resolve);
+  template = template.replace(/\{\{([^}]+)\}\}/g, (_m, path) => {
+    const value = getNestedValue(ctx, path.trim());
+    if (value === undefined || value === null) return 'null';
+    if (typeof value === 'string') return JSON.stringify(value);
+    return String(value);
+  });
+
+  const parsed = JSON.parse(template);
+  assert.equal(parsed[0].CodigoArticulo, 'ABC');
+  assert.equal(parsed[0].descripcion, 'Producto A - Calle 1, Madrid');
+  assert.equal(parsed[0].cantidad, 2);
 });

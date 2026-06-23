@@ -1979,6 +1979,7 @@ export default function FlowEditor({ flow, projectId, onSave, onCancel }) {
                       <li><strong>Cálculos numéricos:</strong> sufijos <code className="bg-gray-200 px-1 rounded">::divide(1.21)</code>, <code className="bg-gray-200 px-1 rounded">::multiplyBy(data.campo2)</code>, <code className="bg-gray-200 px-1 rounded">::round(2)</code></li>
                       <li><strong>Cálculo entre campos:</strong> <code className="bg-gray-200 px-1 rounded">data.campo1::divideBy(data.campo2)</code> o <code className="bg-gray-200 px-1 rounded">calc:{'{{'}data.campo1{'}}'}/{'{{'}data.campo2{'}}'}</code></li>
                       <li><strong>Aritmética en literales:</strong> <code className="bg-gray-200 px-1 rounded">{'{{'}data.precio{'}}'}/1.21</code> o <code className="bg-gray-200 px-1 rounded">{'{{'}data.total{'}}'}/{'{{'}data.cantidad{'}}'}</code></li>
+                      <li><strong>Concatenar textos en literales:</strong> pon varios placeholders dentro del mismo par de comillas (ej: <code className="bg-gray-200 px-1 rounded">{'"{{'}data.nombre{'}}'} - {'{{'}data.ciudad{'}}'"'}</code>). También puedes encadenarlos sin comillas: <code className="bg-gray-200 px-1 rounded">{'{{'}data.nombre{'}}'}{'{{'}data.ciudad{'}}'}</code></li>
                       <li><strong>IF condicional (sufijo):</strong> <code className="bg-gray-200 px-1 rounded">data.campo::if(equals,VAL,then,else)</code> (ej: <code className="bg-gray-200 px-1 rounded">data.tipo::if(equals,PREMIUM,1,0)</code>)</li>
                       <li><strong>IF en templates:</strong> <code className="bg-gray-200 px-1 rounded">{'{{'}if(data.tipo,equals,PREMIUM,data.descuento,0){'}}'}</code></li>
                       <li><strong>CASE con default:</strong> <code className="bg-gray-200 px-1 rounded">data.estado::case{'{'}ACTIVE:1,INACTIVE:0,default:-1{'}'}</code></li>
@@ -2004,6 +2005,16 @@ ratioAlt   → calc:{{data.campo1}}/{{data.campo2}}`}</pre>
     "descuento": {{if(data.cliente.esVIP,equals,true,10,0)}}
   }
 ]`}</pre>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Concatenar textos en literales:</p>
+                          <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{`literal:[
+  {
+    "descripcion": "{{data.lineasPedido[0].producto.nombre}} - {{data.direccionEntrega[0].direccionCompleta}}, {{data.direccionEntrega[0].ciudad}}",
+    "etiqueta": {{data.lineasPedido[0].producto.codigoErp}}{{data.lineasPedido[0].producto.nombre}}
+  }
+]`}</pre>
+                          <p className="text-gray-600 mt-1">Dentro de comillas puedes mezclar texto fijo y varios {'{{'}ruta{'}}'}. Sin comillas, los placeholders adyacentes se concatenan como un solo string.</p>
                         </div>
                         <div>
                           <p className="font-medium text-gray-700 mb-1">Operadores IF disponibles:</p>
@@ -2046,7 +2057,7 @@ ratioAlt   → calc:{{data.campo1}}/{{data.campo2}}`}</pre>
 {`literal:[
   {
     "idItem": "{{data.items[0].codigo}}",
-    "descripcion": "{{data.items[0].nombre}}",
+    "descripcion": "{{data.items[0].nombre}} - {{data.items[0].referencia}}",
     "cantidad": {{data.items[0].cantidad}},
     "precioUnitario": {{data.items[0].precioUnitario::divide(1.21)}},
     "ratio": {{data.total}}/{{data.cantidad}},
@@ -3098,7 +3109,7 @@ Valor fuente: literal:[
                       />
                       <p className="mt-1 text-xs text-gray-500">
                         {useTemplate 
-                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, cálculos inline, {{if(...)}} y {{case(...)}}`
+                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, concatenar textos ("{{campo1}} - {{campo2}}"), cálculos inline, {{if(...)}} y {{case(...)}}`
                           : 'Ingresa un objeto JSON válido (ej: {"campo": "valor"})'}
                       </p>
                     </div>
@@ -3131,7 +3142,7 @@ Valor fuente: literal:[
                       />
                       <p className="mt-1 text-xs text-gray-500">
                         {useTemplate 
-                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, cálculos inline (ej: {{data.precio}}/1.21), {{if(...)}} y {{case(...)}}`
+                          ? `Puedes usar ${TEMPLATE_PLACEHOLDER}, concatenar textos ("{{campo1}} - {{campo2}}"), cálculos inline (ej: {{data.precio}}/1.21), {{if(...)}} y {{case(...)}}`
                           : 'Ingresa un array JSON válido (ej: [{"campo": "valor"}])'}
                       </p>
                     </div>
