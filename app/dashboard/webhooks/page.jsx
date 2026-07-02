@@ -88,6 +88,23 @@ function buildInitialFlowFilter(searchParams) {
   return `${projectIdFromUrl || 'legacy'}:${flowIdFromUrl}`;
 }
 
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDefaultWebhookDateRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 6);
+  return {
+    startDate: formatDateInputValue(start),
+    endDate: formatDateInputValue(end),
+  };
+}
+
 async function fetchWebhookDetail(webhook) {
   const params = new URLSearchParams({
     webhookId: webhook.id,
@@ -122,8 +139,12 @@ function WebhooksPageContent() {
   const [total, setTotal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(
+    () => getDefaultWebhookDateRange().startDate,
+  );
+  const [endDate, setEndDate] = useState(
+    () => getDefaultWebhookDateRange().endDate,
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [retryWebhook, setRetryWebhook] = useState(null);
