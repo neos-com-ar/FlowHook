@@ -10,7 +10,50 @@ import {
   XCircle,
   RefreshCw,
   Copy,
+  ChevronDown,
 } from 'lucide-react';
+
+const WEBHOOK_DETAIL_SECTIONS = [
+  { id: 'incomingData', title: 'Datos recibidos' },
+  {
+    id: 'incomingHeaders',
+    title: 'Headers recibidos (origen)',
+    description:
+      'Cabeceras HTTP de la petición que envió el sistema origen a FlowHook (pueden incluir cabeceras añadidas por la plataforma de despliegue).',
+  },
+  { id: 'headers', title: 'Headers enviados' },
+  { id: 'mappedData', title: 'Datos enviados' },
+  { id: 'result', title: 'Resultado completo' },
+  { id: 'retryInfo', title: 'Información de re-ejecución' },
+];
+
+function CollapsibleDetailSection({ title, description, isOpen, onToggle, children }) {
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        aria-expanded={isOpen}
+      >
+        <span className="text-sm font-semibold text-gray-700">{title}</span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="p-3 border-t border-gray-200 bg-white">
+          {description && (
+            <p className="text-xs text-gray-500 mb-2">{description}</p>
+          )}
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function buildFlowFilterValue(flow) {
   return `${flow.projectId || 'legacy'}:${flow.id}`;
@@ -88,6 +131,30 @@ function WebhooksPageContent() {
   const [retryLoading, setRetryLoading] = useState(false);
   const [webhookDetails, setWebhookDetails] = useState({});
   const [loadingDetailId, setLoadingDetailId] = useState(null);
+  const [detailSectionsOpen, setDetailSectionsOpen] = useState({});
+
+  const detailSectionKey = (webhookId, sectionId) => `${webhookId}:${sectionId}`;
+
+  const isDetailSectionOpen = (webhookId, sectionId) =>
+    Boolean(detailSectionsOpen[detailSectionKey(webhookId, sectionId)]);
+
+  const toggleDetailSection = (webhookId, sectionId) => {
+    const key = detailSectionKey(webhookId, sectionId);
+    setDetailSectionsOpen((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  };
+
+  const setAllDetailSections = (webhookId, open) => {
+    setDetailSectionsOpen((current) => {
+      const next = { ...current };
+      WEBHOOK_DETAIL_SECTIONS.forEach(({ id }) => {
+        next[detailSectionKey(webhookId, id)] = open;
+      });
+      return next;
+    });
+  };
 
   useEffect(() => {
     const flowKeyFromUrl = buildInitialFlowFilter(searchParams);
@@ -226,6 +293,14 @@ function WebhooksPageContent() {
 
     setExpandedWebhook(webhook.id);
 
+    setDetailSectionsOpen((current) => {
+      const next = { ...current };
+      WEBHOOK_DETAIL_SECTIONS.forEach(({ id }) => {
+        next[detailSectionKey(webhook.id, id)] = id === 'mappedData';
+      });
+      return next;
+    });
+
     if (webhookDetails[webhook.id]) {
       return;
     }
@@ -312,7 +387,7 @@ function WebhooksPageContent() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <Link
         href="/dashboard"
         className="mb-4 inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center gap-1"
@@ -426,17 +501,17 @@ function WebhooksPageContent() {
         </div>
       ) : (
         <>
-          <div className="space-y-4 mb-6">
+          <div className="space-y-3 mb-6">
             {webhooks.map((webhook) => (
             <div
               key={webhook.id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow"
             >
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2 flex-wrap gap-2">
+              <div className="flex justify-between items-start gap-3 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-1">
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${
                         webhook.result?.success
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
@@ -444,60 +519,53 @@ function WebhooksPageContent() {
                     >
                       {webhook.result?.success ? (
                         <>
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Exitoso</span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4" />
+                          <XCircle className="w-3.5 h-3.5" />
                           <span>Error</span>
                         </>
                       )}
                     </span>
                     {webhook.projectName && (
-                      <>
-                        <span className="text-sm font-semibold text-indigo-600">
-                          {webhook.projectName}
-                        </span>
-                        <span className="text-gray-400">•</span>
-                      </>
+                      <span className="text-xs font-semibold text-indigo-600 truncate">
+                        {webhook.projectName}
+                      </span>
                     )}
-                    <span className="text-sm text-gray-700 font-medium">
+                    <span className="text-xs text-gray-700 font-medium truncate">
                       {webhook.flowName || webhook.flowId}
                     </span>
                     {webhook.flowId && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                         {webhook.flowId}
                       </span>
                     )}
                     {webhook.manualRetry && (
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                        {`Re-ejecutado manualmente${
-                          webhook.retryCount
-                            ? ` (${webhook.retryCount} vez${
-                                webhook.retryCount > 1 ? 'es' : ''
-                              })`
-                            : ''
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">
+                        {`Re-ejecutado${
+                          webhook.retryCount ? ` (${webhook.retryCount})` : ''
                         }`}
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-xs text-gray-500">
                     {formatDate(webhook.timestamp)}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {!webhook.result?.success && (
                     <button
                       onClick={() => openRetryModal(webhook)}
-                      className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                      className="px-2.5 py-1 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                     >
                       Re-ejecutar
                     </button>
                   )}
                   <button
                     onClick={() => toggleWebhookDetails(webhook)}
-                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                    className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                   >
                     {expandedWebhook === webhook.id
                       ? 'Ocultar'
@@ -507,139 +575,171 @@ function WebhooksPageContent() {
               </div>
 
               {(webhook.destino || webhook.method) && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-gray-600 font-medium">Endpoint destino:</p>
-                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-mono">
-                      {webhook.method || 'POST'}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <code className="flex-1 text-xs text-gray-700 break-all bg-gray-50 p-2 rounded">
-                      {webhook.destino || 'N/A'}
-                    </code>
-                    {webhook.destino && (
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(webhook.destino);
-                          alert('URL copiada al portapapeles');
-                        }}
-                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors"
-                        title="Copiar URL"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono shrink-0">
+                    {webhook.method || 'POST'}
+                  </span>
+                  <code
+                    className="flex-1 min-w-0 text-xs text-gray-600 truncate bg-gray-50 px-2 py-1 rounded"
+                    title={webhook.destino || 'N/A'}
+                  >
+                    {webhook.destino || 'N/A'}
+                  </code>
+                  {webhook.destino && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhook.destino);
+                        alert('URL copiada al portapapeles');
+                      }}
+                      className="p-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition-colors shrink-0"
+                      title="Copiar URL"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Estado HTTP</p>
-                  <p className="text-sm font-medium">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <span>
+                  <span className="text-gray-400">HTTP </span>
+                  <span className="font-medium text-gray-800">
                     {webhook.result?.status || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Tiempo de respuesta</p>
-                  <p className="text-sm font-medium">
+                  </span>
+                </span>
+                <span>
+                  <span className="text-gray-400">Tiempo </span>
+                  <span className="font-medium text-gray-800">
                     {formatTime(webhook.result?.responseTime)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Mensaje</p>
-                  <p className="text-sm font-medium truncate">
+                  </span>
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-gray-400">Mensaje </span>
+                  <span className="font-medium text-gray-800">
                     {webhook.result?.message || webhook.result?.error || 'N/A'}
-                  </p>
-                </div>
+                  </span>
+                </span>
               </div>
 
               {expandedWebhook === webhook.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
                   {loadingDetailId === webhook.id ? (
                     <div className="text-sm text-gray-500">Cargando detalles...</div>
                   ) : (
                     <>
-                  {(() => {
-                    const detail = webhookDetails[webhook.id] || webhook;
-                    return (
-                      <>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Datos recibidos:
-                    </h3>
-                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(detail.incomingData || {}, null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Headers recibidos (origen):
-                    </h3>
-                    <p className="text-xs text-gray-500 mb-2">
-                      Cabeceras HTTP de la petición que envió el sistema origen a
-                      FlowHook (pueden incluir cabeceras añadidas por la plataforma
-                      de despliegue).
-                    </p>
-                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(detail.incomingHeaders || {}, null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Headers enviados:
-                    </h3>
-                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(detail.headers || {}, null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                      Datos mapeados enviados:
-                    </h3>
-                    <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(detail.mappedData || {}, null, 2)}
-                    </pre>
-                  </div>
-                      </>
-                    );
-                  })()}
-                  {webhook.result && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                        Resultado completo:
-                      </h3>
-                      <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                        {JSON.stringify(webhook.result, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {(webhook.retryCount || webhook.lastRetryAt) && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                        Información de re-ejecución:
-                      </h3>
-                      <div className="text-xs text-gray-600 space-y-1">
-                        {typeof webhook.retryCount === 'number' && (
-                          <p>
-                            Reintentos manuales:{' '}
-                            <span className="font-semibold">
-                              {webhook.retryCount}
-                            </span>
-                          </p>
-                        )}
-                        {webhook.lastRetryAt && (
-                          <p>
-                            Último reintento:{' '}
-                            <span className="font-semibold">
-                              {formatDate(webhook.lastRetryAt)}
-                            </span>
-                          </p>
-                        )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAllDetailSections(webhook.id, true)}
+                          className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                        >
+                          Expandir todo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAllDetailSections(webhook.id, false)}
+                          className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                        >
+                          Contraer todo
+                        </button>
                       </div>
-                    </div>
-                  )}
+
+                      {(() => {
+                        const detail = webhookDetails[webhook.id] || webhook;
+                        return (
+                          <>
+                            <CollapsibleDetailSection
+                              title="Datos enviados"
+                              isOpen={isDetailSectionOpen(webhook.id, 'mappedData')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'mappedData')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.mappedData || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Datos recibidos"
+                              isOpen={isDetailSectionOpen(webhook.id, 'incomingData')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'incomingData')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.incomingData || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Headers recibidos (origen)"
+                              description="Cabeceras HTTP de la petición que envió el sistema origen a FlowHook (pueden incluir cabeceras añadidas por la plataforma de despliegue)."
+                              isOpen={isDetailSectionOpen(webhook.id, 'incomingHeaders')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'incomingHeaders')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.incomingHeaders || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Headers enviados"
+                              isOpen={isDetailSectionOpen(webhook.id, 'headers')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'headers')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.headers || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
+                          </>
+                        );
+                      })()}
+
+                      {webhook.result && (
+                        <CollapsibleDetailSection
+                          title="Resultado completo"
+                          isOpen={isDetailSectionOpen(webhook.id, 'result')}
+                          onToggle={() => toggleDetailSection(webhook.id, 'result')}
+                        >
+                          <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                            {JSON.stringify(webhook.result, null, 2)}
+                          </pre>
+                        </CollapsibleDetailSection>
+                      )}
+
+                      {(webhook.retryCount || webhook.lastRetryAt) && (
+                        <CollapsibleDetailSection
+                          title="Información de re-ejecución"
+                          isOpen={isDetailSectionOpen(webhook.id, 'retryInfo')}
+                          onToggle={() =>
+                            toggleDetailSection(webhook.id, 'retryInfo')
+                          }
+                        >
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {typeof webhook.retryCount === 'number' && (
+                              <p>
+                                Reintentos manuales:{' '}
+                                <span className="font-semibold">
+                                  {webhook.retryCount}
+                                </span>
+                              </p>
+                            )}
+                            {webhook.lastRetryAt && (
+                              <p>
+                                Último reintento:{' '}
+                                <span className="font-semibold">
+                                  {formatDate(webhook.lastRetryAt)}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        </CollapsibleDetailSection>
+                      )}
                     </>
                   )}
                 </div>
