@@ -27,6 +27,7 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const search = searchParams.get('search');
 
     const result = await getWebhooks(
       session.user.id,
@@ -38,7 +39,8 @@ export async function GET(request) {
         startDate,
         endDate,
         projectId: projectId || null,
-      }
+        search: search || null,
+      },
     );
 
     return NextResponse.json({ 

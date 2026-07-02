@@ -11,10 +11,10 @@ import {
   RefreshCw,
   Copy,
   ChevronDown,
+  Search,
 } from 'lucide-react';
 
 const WEBHOOK_DETAIL_SECTIONS = [
-  { id: 'incomingData', title: 'Datos recibidos' },
   {
     id: 'incomingHeaders',
     title: 'Headers recibidos (origen)',
@@ -22,8 +22,8 @@ const WEBHOOK_DETAIL_SECTIONS = [
       'Cabeceras HTTP de la petición que envió el sistema origen a FlowHook (pueden incluir cabeceras añadidas por la plataforma de despliegue).',
   },
   { id: 'headers', title: 'Headers enviados' },
+  { id: 'incomingData', title: 'Datos recibidos' },
   { id: 'mappedData', title: 'Datos enviados' },
-  { id: 'result', title: 'Resultado completo' },
   { id: 'retryInfo', title: 'Información de re-ejecución' },
 ];
 
@@ -124,6 +124,8 @@ function WebhooksPageContent() {
   const [statusFilter, setStatusFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [retryWebhook, setRetryWebhook] = useState(null);
   const [isRetryModalOpen, setIsRetryModalOpen] = useState(false);
   const [retryPayloadText, setRetryPayloadText] = useState('');
@@ -176,10 +178,17 @@ function WebhooksPageContent() {
   }, [session]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
     if (session) {
       fetchWebhooks();
     }
-  }, [session, selectedFlowKey, currentPage, statusFilter, startDate, endDate]);
+  }, [session, selectedFlowKey, currentPage, statusFilter, startDate, endDate, debouncedSearch]);
 
   const fetchFlows = async () => {
     try {
@@ -220,6 +229,9 @@ function WebhooksPageContent() {
       }
       if (endDate) {
         params.set('endDate', endDate);
+      }
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
       }
 
       const response = await fetch(`/api/webhooks?${params.toString()}`);
@@ -414,7 +426,29 @@ function WebhooksPageContent() {
       </div>
 
       {/* Filtros */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
+      <div className="mb-6 bg-white rounded-lg shadow p-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Buscar en logs:
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Pedido, cliente, código ERP, CUIT..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Busca en datos recibidos, datos enviados, headers y mensajes de respuesta.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -494,9 +528,15 @@ function WebhooksPageContent() {
         </div>
       ) : webhooks.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500 mb-4">No hay webhooks registrados aún.</p>
+          <p className="text-gray-500 mb-4">
+            {debouncedSearch
+              ? `No se encontraron logs que coincidan con "${debouncedSearch}".`
+              : 'No hay webhooks registrados aún.'}
+          </p>
           <p className="text-sm text-gray-400">
-            Los webhooks aparecerán aquí cuando se reciban en tus flujos.
+            {debouncedSearch
+              ? 'Probá con otro término o quitá el filtro de búsqueda.'
+              : 'Los webhooks aparecerán aquí cuando se reciban en tus flujos.'}
           </p>
         </div>
       ) : (
@@ -649,30 +689,6 @@ function WebhooksPageContent() {
                         return (
                           <>
                             <CollapsibleDetailSection
-                              title="Datos enviados"
-                              isOpen={isDetailSectionOpen(webhook.id, 'mappedData')}
-                              onToggle={() =>
-                                toggleDetailSection(webhook.id, 'mappedData')
-                              }
-                            >
-                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                                {JSON.stringify(detail.mappedData || {}, null, 2)}
-                              </pre>
-                            </CollapsibleDetailSection>
-
-                            <CollapsibleDetailSection
-                              title="Datos recibidos"
-                              isOpen={isDetailSectionOpen(webhook.id, 'incomingData')}
-                              onToggle={() =>
-                                toggleDetailSection(webhook.id, 'incomingData')
-                              }
-                            >
-                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                                {JSON.stringify(detail.incomingData || {}, null, 2)}
-                              </pre>
-                            </CollapsibleDetailSection>
-
-                            <CollapsibleDetailSection
                               title="Headers recibidos (origen)"
                               description="Cabeceras HTTP de la petición que envió el sistema origen a FlowHook (pueden incluir cabeceras añadidas por la plataforma de despliegue)."
                               isOpen={isDetailSectionOpen(webhook.id, 'incomingHeaders')}
@@ -696,21 +712,33 @@ function WebhooksPageContent() {
                                 {JSON.stringify(detail.headers || {}, null, 2)}
                               </pre>
                             </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Datos recibidos"
+                              isOpen={isDetailSectionOpen(webhook.id, 'incomingData')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'incomingData')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.incomingData || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Datos enviados"
+                              isOpen={isDetailSectionOpen(webhook.id, 'mappedData')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'mappedData')
+                              }
+                            >
+                              <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                {JSON.stringify(detail.mappedData || {}, null, 2)}
+                              </pre>
+                            </CollapsibleDetailSection>
                           </>
                         );
                       })()}
-
-                      {webhook.result && (
-                        <CollapsibleDetailSection
-                          title="Resultado completo"
-                          isOpen={isDetailSectionOpen(webhook.id, 'result')}
-                          onToggle={() => toggleDetailSection(webhook.id, 'result')}
-                        >
-                          <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
-                            {JSON.stringify(webhook.result, null, 2)}
-                          </pre>
-                        </CollapsibleDetailSection>
-                      )}
 
                       {(webhook.retryCount || webhook.lastRetryAt) && (
                         <CollapsibleDetailSection
