@@ -24,8 +24,39 @@ const WEBHOOK_DETAIL_SECTIONS = [
   { id: 'headers', title: 'Headers enviados' },
   { id: 'incomingData', title: 'Datos recibidos' },
   { id: 'mappedData', title: 'Datos enviados' },
+  {
+    id: 'destinationResponse',
+    title: 'Respuesta del destino',
+    description:
+      'Código HTTP y cuerpo de la respuesta recibida del endpoint destino del flujo.',
+  },
+  {
+    id: 'postResponseActions',
+    title: 'Acciones post-respuesta',
+    description:
+      'Resultados de las acciones ejecutadas después de recibir la respuesta del destino.',
+  },
   { id: 'retryInfo', title: 'Información de re-ejecución' },
 ];
+
+function formatJsonValue(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function getPostResponseActions(detail) {
+  const actions = detail?.postResponseActions || detail?.result?.postResponseActions;
+  return Array.isArray(actions) ? actions : [];
+}
 
 function CollapsibleDetailSection({ title, description, isOpen, onToggle, children }) {
   return (
@@ -757,6 +788,131 @@ function WebhooksPageContent() {
                                 {JSON.stringify(detail.mappedData || {}, null, 2)}
                               </pre>
                             </CollapsibleDetailSection>
+
+                            <CollapsibleDetailSection
+                              title="Respuesta del destino"
+                              description="Código HTTP y cuerpo de la respuesta recibida del endpoint destino del flujo."
+                              isOpen={isDetailSectionOpen(webhook.id, 'destinationResponse')}
+                              onToggle={() =>
+                                toggleDetailSection(webhook.id, 'destinationResponse')
+                              }
+                            >
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                                  <span>
+                                    <span className="text-gray-400">HTTP </span>
+                                    <span className="font-medium text-gray-800">
+                                      {detail.result?.status || 'N/A'}
+                                    </span>
+                                  </span>
+                                  <span>
+                                    <span className="text-gray-400">Estado </span>
+                                    <span
+                                      className={`font-medium ${
+                                        detail.result?.success
+                                          ? 'text-green-700'
+                                          : 'text-red-700'
+                                      }`}
+                                    >
+                                      {detail.result?.success ? 'Exitoso' : 'Error'}
+                                    </span>
+                                  </span>
+                                </div>
+                                {detail.result?.responseData != null ? (
+                                  <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                    {formatJsonValue(detail.result.responseData)}
+                                  </pre>
+                                ) : (
+                                  <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+                                    {detail.result?.message ||
+                                      detail.result?.error ||
+                                      'Sin cuerpo de respuesta registrado'}
+                                  </pre>
+                                )}
+                              </div>
+                            </CollapsibleDetailSection>
+
+                            {getPostResponseActions(detail).length > 0 && (
+                              <CollapsibleDetailSection
+                                title="Acciones post-respuesta"
+                                description="Resultados de las acciones ejecutadas después de recibir la respuesta del destino."
+                                isOpen={isDetailSectionOpen(webhook.id, 'postResponseActions')}
+                                onToggle={() =>
+                                  toggleDetailSection(webhook.id, 'postResponseActions')
+                                }
+                              >
+                                <div className="space-y-3">
+                                  {getPostResponseActions(detail).map((action, index) => (
+                                    <div
+                                      key={`${action.name || 'action'}-${index}`}
+                                      className="border border-gray-200 rounded-lg overflow-hidden"
+                                    >
+                                      <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+                                        <span className="text-sm font-semibold text-gray-700">
+                                          {action.name || `Acción ${index + 1}`}
+                                        </span>
+                                        <span
+                                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                            action.skipped
+                                              ? 'bg-yellow-100 text-yellow-800'
+                                              : action.success
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-red-100 text-red-800'
+                                          }`}
+                                        >
+                                          {action.skipped
+                                            ? 'Omitida'
+                                            : action.success
+                                              ? 'Exitosa'
+                                              : 'Error'}
+                                        </span>
+                                      </div>
+                                      <div className="p-3 space-y-2 text-xs">
+                                        {action.url && (
+                                          <p className="break-all">
+                                            <span className="text-gray-400">URL </span>
+                                            <span className="font-medium text-gray-800">
+                                              {action.url}
+                                            </span>
+                                          </p>
+                                        )}
+                                        {action.status && (
+                                          <p>
+                                            <span className="text-gray-400">HTTP </span>
+                                            <span className="font-medium text-gray-800">
+                                              {action.status}
+                                            </span>
+                                          </p>
+                                        )}
+                                        {action.reason && (
+                                          <p className="text-yellow-700">{action.reason}</p>
+                                        )}
+                                        {action.error && (
+                                          <p className="text-red-700">{action.error}</p>
+                                        )}
+                                        {action.data != null && (
+                                          <div>
+                                            <p className="text-gray-400 mb-1">
+                                              Respuesta recibida
+                                            </p>
+                                            <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                              {formatJsonValue(action.data)}
+                                            </pre>
+                                          </div>
+                                        )}
+                                        {!action.skipped &&
+                                          action.data == null &&
+                                          !action.error && (
+                                            <p className="text-gray-500">
+                                              Sin cuerpo de respuesta registrado
+                                            </p>
+                                          )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleDetailSection>
+                            )}
                           </>
                         );
                       })()}
