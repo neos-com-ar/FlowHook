@@ -2255,6 +2255,7 @@ Valor fuente: literal:[
                       Configura acciones que se ejecutarán después de recibir la respuesta del endpoint destino.
                       Puedes usar datos de la respuesta como <code className="bg-gray-100 px-1 rounded text-xs">response.id</code>, 
                       datos del webhook como <code className="bg-gray-100 px-1 rounded text-xs">data.email</code>, 
+                      headers del origen como <code className="bg-gray-100 px-1 rounded text-xs">headers.authorization</code>,
                       y datos de llamadas previas como <code className="bg-gray-100 px-1 rounded text-xs">prev.nombreEndpoint.campo</code>.
                     </p>
                   </div>
