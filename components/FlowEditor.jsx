@@ -2415,7 +2415,7 @@ Valor fuente: literal:[
                                 Mapeo del Body para la Acción
                               </label>
                               <p className="text-xs text-gray-500 mb-2">
-                              Define qué campos se envían al endpoint. Puedes usar <code className="bg-gray-200 px-1 rounded">response.campo</code>, <code className="bg-gray-200 px-1 rounded">data.campo</code> o <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code>.
+                              Define qué campos se envían al endpoint. Puedes usar <code className="bg-gray-200 px-1 rounded">response.campo</code>, <code className="bg-gray-200 px-1 rounded">data.campo</code>, <code className="bg-gray-200 px-1 rounded">prev.nombreEndpoint.campo</code> o valores literales como <code className="bg-gray-200 px-1 rounded">true</code>, <code className="bg-gray-200 px-1 rounded">false</code> o <code className="bg-gray-200 px-1 rounded">123</code>.
                             </p>
                               {action.bodyMapEntries.length === 0 ? (
                                 <button

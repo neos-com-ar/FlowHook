@@ -897,13 +897,25 @@ function WebhooksPageContent() {
                                                 </pre>
                                               </div>
                                             )}
-                                            {action.request?.body && (
+                                            {action.request?.body ? (
                                               <div>
                                                 <p className="text-gray-400 mb-1">Payload</p>
                                                 <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
                                                   {formatJsonValue(action.request.body)}
                                                 </pre>
                                               </div>
+                                            ) : (
+                                              !action.request?.queryParams &&
+                                              ['POST', 'PUT', 'PATCH'].includes(
+                                                action.request?.method || action.method || '',
+                                              ) && (
+                                                <div>
+                                                  <p className="text-gray-400 mb-1">Payload</p>
+                                                  <p className="text-amber-700 bg-amber-50 p-3 rounded">
+                                                    Sin payload enviado
+                                                  </p>
+                                                </div>
+                                              )
                                             )}
                                             {action.request?.queryParams && (
                                               <div>
