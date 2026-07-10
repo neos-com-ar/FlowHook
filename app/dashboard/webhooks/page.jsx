@@ -867,18 +867,60 @@ function WebhooksPageContent() {
                                               : 'Error'}
                                         </span>
                                       </div>
-                                      <div className="p-3 space-y-2 text-xs">
-                                        {action.url && (
-                                          <p className="break-all">
-                                            <span className="text-gray-400">URL </span>
-                                            <span className="font-medium text-gray-800">
-                                              {action.url}
-                                            </span>
-                                          </p>
+                                      <div className="p-3 space-y-3 text-xs">
+                                        {(action.request || action.url) && (
+                                          <div className="space-y-2">
+                                            <p className="text-gray-500 font-medium uppercase tracking-wide">
+                                              Request enviado
+                                            </p>
+                                            {(action.request?.method || action.method) && (
+                                              <p>
+                                                <span className="text-gray-400">Método </span>
+                                                <span className="font-medium text-gray-800">
+                                                  {action.request?.method || action.method}
+                                                </span>
+                                              </p>
+                                            )}
+                                            {(action.request?.url || action.url) && (
+                                              <p className="break-all">
+                                                <span className="text-gray-400">URL </span>
+                                                <span className="font-medium text-gray-800">
+                                                  {action.request?.url || action.url}
+                                                </span>
+                                              </p>
+                                            )}
+                                            {action.request?.headers && (
+                                              <div>
+                                                <p className="text-gray-400 mb-1">Headers</p>
+                                                <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                                  {formatJsonValue(action.request.headers)}
+                                                </pre>
+                                              </div>
+                                            )}
+                                            {action.request?.body && (
+                                              <div>
+                                                <p className="text-gray-400 mb-1">Payload</p>
+                                                <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                                  {formatJsonValue(action.request.body)}
+                                                </pre>
+                                              </div>
+                                            )}
+                                            {action.request?.queryParams && (
+                                              <div>
+                                                <p className="text-gray-400 mb-1">
+                                                  Query params
+                                                </p>
+                                                <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                                                  {formatJsonValue(action.request.queryParams)}
+                                                </pre>
+                                              </div>
+                                            )}
+                                          </div>
                                         )}
+
                                         {action.status && (
                                           <p>
-                                            <span className="text-gray-400">HTTP </span>
+                                            <span className="text-gray-400">HTTP respuesta </span>
                                             <span className="font-medium text-gray-800">
                                               {action.status}
                                             </span>
@@ -892,7 +934,7 @@ function WebhooksPageContent() {
                                         )}
                                         {action.data != null && (
                                           <div>
-                                            <p className="text-gray-400 mb-1">
+                                            <p className="text-gray-400 mb-1 font-medium uppercase tracking-wide">
                                               Respuesta recibida
                                             </p>
                                             <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
