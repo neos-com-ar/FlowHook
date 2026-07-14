@@ -12,6 +12,7 @@ import {
   Copy,
   ChevronDown,
   Search,
+  Trash2,
 } from 'lucide-react';
 
 const WEBHOOK_DETAIL_SECTIONS = [
@@ -186,6 +187,14 @@ function WebhooksPageContent() {
   const [webhookDetails, setWebhookDetails] = useState({});
   const [loadingDetailId, setLoadingDetailId] = useState(null);
   const [detailSectionsOpen, setDetailSectionsOpen] = useState({});
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteFromDate, setDeleteFromDate] = useState(() =>
+    formatDateInputValue(new Date()),
+  );
+  const [deleteScopeAll, setDeleteScopeAll] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteResult, setDeleteResult] = useState(null);
 
   const detailSectionKey = (webhookId, sectionId) => `${webhookId}:${sectionId}`;
 
@@ -304,6 +313,67 @@ function WebhooksPageContent() {
 
   const handleRefresh = () => {
     fetchWebhooks(true);
+  };
+
+  const openDeleteModal = () => {
+    setDeleteFromDate(startDate || formatDateInputValue(new Date()));
+    setDeleteScopeAll(!selectedFlowKey);
+    setDeleteError('');
+    setDeleteResult(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleteLoading) {
+      return;
+    }
+    setIsDeleteModalOpen(false);
+    setDeleteError('');
+    setDeleteResult(null);
+  };
+
+  const handleDeleteLogs = async () => {
+    if (!deleteFromDate) {
+      setDeleteError('Seleccioná una fecha de inicio.');
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError('');
+    setDeleteResult(null);
+
+    try {
+      const payload = { fromDate: deleteFromDate };
+      if (!deleteScopeAll && selectedFlowKey) {
+        const { projectId, flowId } = parseFlowFilterValue(selectedFlowKey);
+        if (flowId) {
+          payload.flowId = flowId;
+        }
+        if (projectId) {
+          payload.projectId = projectId;
+        }
+      }
+
+      const response = await fetch('/api/webhooks/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'No se pudieron borrar los logs');
+      }
+
+      setDeleteResult(data);
+      setCurrentPage(1);
+      await fetchWebhooks(true);
+    } catch (error) {
+      console.error('Error deleting webhook logs:', error);
+      setDeleteError(error.message || 'Error al borrar logs');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handlePageChange = (newPage) => {
@@ -465,6 +535,15 @@ function WebhooksPageContent() {
           <p className="text-gray-600 mt-2">Visualiza todos los webhooks recibidos y su estado</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={openDeleteModal}
+            disabled={refreshing || loading || deleteLoading}
+            className="px-4 py-2 bg-white text-red-700 border border-red-200 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Borrar logs a partir de una fecha"
+          >
+            <Trash2 className="w-4 h-4" />
+            Borrar logs
+          </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading}
@@ -1119,6 +1198,115 @@ function WebhooksPageContent() {
               >
                 {retryLoading ? 'Re-ejecutando...' : 'Re-ejecutar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Borrar logs a partir de una fecha
+              </h2>
+              <button
+                onClick={closeDeleteModal}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+                disabled={deleteLoading}
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Se eliminarán permanentemente todos los logs con fecha{' '}
+                <span className="font-medium text-gray-800">igual o posterior</span> a
+                la seleccionada. Esta acción no se puede deshacer.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Borrar desde:
+                </label>
+                <input
+                  type="date"
+                  value={deleteFromDate}
+                  onChange={(e) => setDeleteFromDate(e.target.value)}
+                  disabled={deleteLoading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Alcance:
+                </label>
+                {selectedFlowKey && (
+                  <label className="flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="radio"
+                      name="deleteScope"
+                      checked={!deleteScopeAll}
+                      onChange={() => setDeleteScopeAll(false)}
+                      disabled={deleteLoading}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Solo el flujo filtrado (
+                      {flows.find((f) => buildFlowFilterValue(f) === selectedFlowKey)
+                        ?.name || parseFlowFilterValue(selectedFlowKey).flowId}
+                      )
+                    </span>
+                  </label>
+                )}
+                <label className="flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="deleteScope"
+                    checked={deleteScopeAll || !selectedFlowKey}
+                    onChange={() => setDeleteScopeAll(true)}
+                    disabled={deleteLoading}
+                    className="mt-0.5"
+                  />
+                  <span>Todos los flujos</span>
+                </label>
+              </div>
+
+              {deleteError && (
+                <p className="text-sm text-red-600">{deleteError}</p>
+              )}
+              {deleteResult && (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-md px-3 py-2">
+                  Se borraron {deleteResult.deletedCount || 0} log
+                  {(deleteResult.deletedCount || 0) === 1 ? '' : 's'}
+                  {deleteResult.flows?.length
+                    ? ` en ${deleteResult.flows.length} flujo${
+                        deleteResult.flows.length === 1 ? '' : 's'
+                      }`
+                    : ''}
+                  .
+                </p>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={closeDeleteModal}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                disabled={deleteLoading}
+              >
+                {deleteResult ? 'Cerrar' : 'Cancelar'}
+              </button>
+              {!deleteResult && (
+                <button
+                  onClick={handleDeleteLogs}
+                  disabled={deleteLoading || !deleteFromDate}
+                  className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {deleteLoading ? 'Borrando...' : 'Borrar logs'}
+                </button>
+              )}
             </div>
           </div>
         </div>
