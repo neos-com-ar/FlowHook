@@ -316,7 +316,9 @@ function WebhooksPageContent() {
   };
 
   const openDeleteModal = () => {
-    setDeleteFromDate(startDate || formatDateInputValue(new Date()));
+    // Propone la fecha del filtro "Desde" (lo que está fuera del rango visible).
+    const proposed = startDate || getDefaultWebhookDateRange().startDate;
+    setDeleteFromDate(proposed);
     setDeleteScopeAll(!selectedFlowKey);
     setDeleteError('');
     setDeleteResult(null);
@@ -334,7 +336,7 @@ function WebhooksPageContent() {
 
   const handleDeleteLogs = async () => {
     if (!deleteFromDate) {
-      setDeleteError('Seleccioná una fecha de inicio.');
+      setDeleteError('Seleccioná una fecha límite.');
       return;
     }
 
@@ -343,7 +345,7 @@ function WebhooksPageContent() {
     setDeleteResult(null);
 
     try {
-      const payload = { fromDate: deleteFromDate };
+      const payload = { beforeDate: deleteFromDate };
       if (!deleteScopeAll && selectedFlowKey) {
         const { projectId, flowId } = parseFlowFilterValue(selectedFlowKey);
         if (flowId) {
@@ -539,7 +541,7 @@ function WebhooksPageContent() {
             onClick={openDeleteModal}
             disabled={refreshing || loading || deleteLoading}
             className="px-4 py-2 bg-white text-red-700 border border-red-200 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            title="Borrar logs a partir de una fecha"
+            title="Borrar logs anteriores a una fecha"
           >
             <Trash2 className="w-4 h-4" />
             Borrar logs
@@ -1208,7 +1210,7 @@ function WebhooksPageContent() {
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Borrar logs a partir de una fecha
+                Borrar logs anteriores a una fecha
               </h2>
               <button
                 onClick={closeDeleteModal}
@@ -1221,13 +1223,14 @@ function WebhooksPageContent() {
             <div className="px-6 py-4 space-y-4">
               <p className="text-sm text-gray-600">
                 Se eliminarán permanentemente todos los logs con fecha{' '}
-                <span className="font-medium text-gray-800">igual o posterior</span> a
-                la seleccionada. Esta acción no se puede deshacer.
+                <span className="font-medium text-gray-800">anterior</span> a
+                la seleccionada. Los logs de esa fecha en adelante se conservan.
+                Esta acción no se puede deshacer.
               </p>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Borrar desde:
+                  Borrar anteriores a:
                 </label>
                 <input
                   type="date"
@@ -1236,6 +1239,20 @@ function WebhooksPageContent() {
                   disabled={deleteLoading}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Se propone la fecha del filtro <span className="font-medium">Desde</span>
+                  {startDate ? ` (${startDate})` : ''}. Podés cambiarla si querés.
+                </p>
+                {startDate && deleteFromDate !== startDate && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteFromDate(startDate)}
+                    disabled={deleteLoading}
+                    className="mt-1 text-xs text-indigo-600 hover:text-indigo-800"
+                  >
+                    Usar fecha del filtro Desde
+                  </button>
+                )}
               </div>
 
               <div className="space-y-2">
