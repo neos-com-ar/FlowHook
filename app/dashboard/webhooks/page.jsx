@@ -13,7 +13,24 @@ import {
   ChevronDown,
   Search,
   Trash2,
+  HardDrive,
 } from 'lucide-react';
+
+const STORAGE_GROUP_LABELS = {
+  webhook_record: 'Payloads completos de logs',
+  'webhooks (buckets)': 'Listados de logs por flujo',
+  webhook_index: 'Índices de logs',
+  webhook_meta: 'Metadatos de logs',
+  entity_mapping: 'Vínculos de entidades',
+  otros: 'Usuarios, proyectos y flujos',
+};
+
+function formatStorageBytes(bytes) {
+  if (bytes == null) return 'N/A';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const WEBHOOK_DETAIL_SECTIONS = [
   {
@@ -195,6 +212,10 @@ function WebhooksPageContent() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleteResult, setDeleteResult] = useState(null);
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  const [storageUsage, setStorageUsage] = useState(null);
+  const [storageLoading, setStorageLoading] = useState(false);
+  const [storageError, setStorageError] = useState('');
 
   const detailSectionKey = (webhookId, sectionId) => `${webhookId}:${sectionId}`;
 
@@ -332,6 +353,29 @@ function WebhooksPageContent() {
     setIsDeleteModalOpen(false);
     setDeleteError('');
     setDeleteResult(null);
+  };
+
+  const fetchStorageUsage = async () => {
+    setStorageLoading(true);
+    setStorageError('');
+    try {
+      const response = await fetch('/api/storage/usage');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'No se pudo obtener el almacenamiento');
+      }
+      setStorageUsage(data);
+    } catch (error) {
+      console.error('Error fetching storage usage:', error);
+      setStorageError(error.message || 'Error al obtener el almacenamiento');
+    } finally {
+      setStorageLoading(false);
+    }
+  };
+
+  const openStorageModal = () => {
+    setIsStorageModalOpen(true);
+    fetchStorageUsage();
   };
 
   const handleDeleteLogs = async () => {
@@ -537,6 +581,14 @@ function WebhooksPageContent() {
           <p className="text-gray-600 mt-2">Visualiza todos los webhooks recibidos y su estado</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={openStorageModal}
+            className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+            title="Ver espacio ocupado y libre del almacenamiento"
+          >
+            <HardDrive className="w-4 h-4" />
+            Almacenamiento
+          </button>
           <button
             onClick={openDeleteModal}
             disabled={refreshing || loading || deleteLoading}
@@ -1199,6 +1251,126 @@ function WebhooksPageContent() {
                 className="px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {retryLoading ? 'Re-ejecutando...' : 'Re-ejecutar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isStorageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Almacenamiento</h2>
+              <button
+                onClick={() => setIsStorageModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              {storageLoading && (
+                <p className="text-sm text-gray-500">
+                  Midiendo el almacenamiento, puede tardar unos segundos...
+                </p>
+              )}
+              {storageError && !storageLoading && (
+                <p className="text-sm text-red-600">{storageError}</p>
+              )}
+              {storageUsage && !storageLoading && (() => {
+                const percent = storageUsage.limitBytes
+                  ? (storageUsage.usedBytes / storageUsage.limitBytes) * 100
+                  : null;
+                const barColor =
+                  percent >= 90 ? 'bg-red-500' : percent >= 70 ? 'bg-amber-500' : 'bg-green-500';
+                return (
+                  <>
+                    {percent !== null ? (
+                      <div>
+                        <div className="flex justify-between text-sm text-gray-700 mb-1">
+                          <span>
+                            Ocupado:{' '}
+                            <span className="font-medium">
+                              {formatStorageBytes(storageUsage.usedBytes)}
+                            </span>
+                          </span>
+                          <span>
+                            Libre:{' '}
+                            <span className="font-medium">
+                              {formatStorageBytes(storageUsage.freeBytes)}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${barColor}`}
+                            style={{ width: `${Math.min(100, percent)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {percent.toFixed(1)}% de {formatStorageBytes(storageUsage.limitBytes)}
+                          {storageUsage.totalKeys != null
+                            ? ` · ${storageUsage.totalKeys} claves`
+                            : ''}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        Almacenamiento local: {formatStorageBytes(storageUsage.usedBytes)} en
+                        tmp/data.json.
+                      </p>
+                    )}
+
+                    {storageUsage.groups?.length > 0 && (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-1 font-medium">Tipo</th>
+                            <th className="py-1 font-medium text-right">Claves</th>
+                            <th className="py-1 font-medium text-right">Tamaño</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {storageUsage.groups.map((group) => (
+                            <tr key={group.name} className="border-b border-gray-100">
+                              <td className="py-1 text-gray-700">
+                                {STORAGE_GROUP_LABELS[group.name] || group.name}
+                              </td>
+                              <td className="py-1 text-right text-gray-600">{group.count}</td>
+                              <td className="py-1 text-right text-gray-800">
+                                {formatStorageBytes(group.bytes)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                    {storageUsage.storage === 'kv' && (
+                      <p className="text-xs text-gray-500">
+                        Es la suma del tamaño de los datos guardados. El panel de Upstash
+                        puede mostrar un porcentaje algo mayor por el overhead interno.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={fetchStorageUsage}
+                disabled={storageLoading}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${storageLoading ? 'animate-spin' : ''}`} />
+                Volver a medir
+              </button>
+              <button
+                onClick={() => setIsStorageModalOpen(false)}
+                className="px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                Cerrar
               </button>
             </div>
           </div>
