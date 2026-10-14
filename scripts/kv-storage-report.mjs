@@ -75,6 +75,7 @@ async function main() {
     ['Solo huérfanos (listado igual)', { type: 'orphans' }],
     ['Últimos 30 días', { type: 'days', days: 30 }],
     ['Últimos 7 días', { type: 'days', days: 7 }],
+    ['Últimos 200 por flujo', { type: 'last', count: 200 }],
     ['Últimos 100 por flujo', { type: 'last', count: 100 }],
   ];
   for (const [label, mode] of options) {

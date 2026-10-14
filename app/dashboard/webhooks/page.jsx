@@ -630,7 +630,8 @@ function WebhooksPageContent() {
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Busca en datos recibidos, datos enviados, headers y mensajes de respuesta.
+            Busca en los valores principales de los datos recibidos y enviados, y en los
+            mensajes de error.
           </p>
         </div>
 
